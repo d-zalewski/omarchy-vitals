@@ -18,7 +18,7 @@ Python standard library only. Clone and run.
 | Tier | Covers | Time |
 |---|---|---|
 | 0 | kernel faults: taint, oops, MCE, failed units, boot timing; deploy integrity: the running kernel is the installed one, initramfs, microcode, Secure Boot | 30s |
-| 1 | hardware: GPU, audio, network, USB, input, storage, thermal, module loading, DKMS, driver binding, TPM and LUKS unlock | 4m |
+| 1 | hardware: GPU, audio, network, USB, input, storage, thermal, module loading, DKMS, driver binding, TPM and LUKS unlock, namespaces / seccomp / cgroups / KVM | 4m |
 | 2 | latency: `cyclictest` idle and under load, `hackbench` | 12m |
 | 3 | stress: sustained load, thermal peak, disk I/O | 20m |
 | 4 | suspend/resume: S3 cycles, devices verified afterwards | 3m |
@@ -131,7 +131,7 @@ committed.
 
 ## Tests
 
-332 tests, 100 % coverage, no hardware or network access — they run anywhere in
+369 tests, 100 % coverage, no hardware or network access — they run anywhere in
 under a second.
 
 ```bash

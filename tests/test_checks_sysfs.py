@@ -9,6 +9,7 @@ from helpers import FakeContext, cp  # noqa: E402
 
 from vitals.checks import (audio, graphics, kernel_build, network,  # noqa: E402
                            peripherals, stress, throughput)
+from vitals import core  # noqa: E402
 from vitals.core import Status  # noqa: E402
 
 
@@ -291,17 +292,17 @@ class TestKernelBuildPaths(unittest.TestCase):
         self.assertIs(r.status, Status.WARN)
         self.assertEqual(r.metrics["btf_modules"], 0)
 
-    def test_compile_run_executes(self):
+    def testcompile_run_executes(self):
         ctx = FakeContext(commands={"gcc": cp("")})
         with mock.patch("subprocess.run", return_value=cp("ok", 0)):
-            built, rc, out = kernel_build._compile_run(ctx, "int main(){}", ["-O2"])
+            built, rc, out = core.compile_run(ctx, "int main(){}", ["-O2"])
         self.assertTrue(built)
         self.assertEqual(rc, 0)
 
-    def test_compile_run_execution_error(self):
+    def testcompile_run_execution_error(self):
         ctx = FakeContext(commands={"gcc": cp("")})
         with mock.patch("subprocess.run", side_effect=OSError("boom")):
-            built, rc, out = kernel_build._compile_run(ctx, "int main(){}", [])
+            built, rc, out = core.compile_run(ctx, "int main(){}", [])
         self.assertTrue(built)
         self.assertIsNone(rc)
 

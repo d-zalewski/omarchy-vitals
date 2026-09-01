@@ -42,19 +42,19 @@ class TestAudioBranches(unittest.TestCase):
 
 class TestKernelBuildBranches(unittest.TestCase):
     def test_vdso32_success(self):
-        with mock.patch.object(kernel_build, "_compile_run",
+        with mock.patch.object(kernel_build, "compile_run",
                                return_value=(True, 0, "ok")):
             r = kernel_build.vdso32(FakeContext())
         self.assertIs(r.status, Status.PASS)
         self.assertIn("32-bit", r.message)
 
     def test_vdso32_runs_but_fails(self):
-        with mock.patch.object(kernel_build, "_compile_run",
+        with mock.patch.object(kernel_build, "compile_run",
                                return_value=(True, 1, "")):
             self.assertIs(kernel_build.vdso32(FakeContext()).status, Status.FAIL)
 
     def test_stack_protector_compile_failure_skips(self):
-        with mock.patch.object(kernel_build, "_compile_run",
+        with mock.patch.object(kernel_build, "compile_run",
                                return_value=(False, None, "gcc missing")):
             self.assertIs(kernel_build.stack_protector(FakeContext()).status,
                           Status.SKIP)

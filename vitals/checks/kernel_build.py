@@ -11,11 +11,9 @@ than using Arch's binary toolchain, so the risks are toolchain risks:
 """
 from __future__ import annotations
 
-import subprocess
-import tempfile
 from pathlib import Path
 
-from ..core import Fail, Info, Ok, Skip, Warn, check
+from ..core import Fail, Info, Ok, Skip, Warn, check, compile_run
 
 C_VDSO = r"""
 #include <time.h>
@@ -30,22 +28,6 @@ C_SSP = r"""
 #include <string.h>
 int main(void){char b[16]; memset(b,'A',64); return 0;}
 """
-
-
-def _compile_run(ctx, src: str, flags: list[str]):
-    with tempfile.TemporaryDirectory() as d:
-        c, exe = Path(d) / "t.c", Path(d) / "t"
-        c.write_text(src)
-        cp = ctx.run(["gcc", *flags, "-o", str(exe), str(c)], timeout=90)
-        if cp.returncode != 0:
-            return False, None, cp.stderr
-        try:
-            # ulimit -c 0 keeps a deliberate abort from writing a core dump
-            r = subprocess.run(f"ulimit -c 0; {exe}", shell=True,
-                               capture_output=True, text=True, timeout=30)
-            return True, r.returncode, r.stdout
-        except Exception as exc:                       # noqa: BLE001
-            return True, None, str(exc)
 
 
 @check(tier=1, name="compiler", desc="compiler the kernel was built with")
@@ -90,7 +72,7 @@ def bpftrace_attach(ctx):
 
 @check(tier=1, name="vdso64", desc="64-bit vDSO clock_gettime", requires=["gcc"])
 def vdso64(ctx):
-    built, rc, out = _compile_run(ctx, C_VDSO, ["-O2"])
+    built, rc, out = compile_run(ctx, C_VDSO, ["-O2"])
     if not built:
         return Skip("could not compile test program")
     return Ok("vDSO clock_gettime works (64-bit)") if rc == 0 and "ok" in out \
@@ -99,7 +81,7 @@ def vdso64(ctx):
 
 @check(tier=1, name="vdso32", desc="32-bit vDSO / IA32 emulation", requires=["gcc"])
 def vdso32(ctx):
-    built, rc, out = _compile_run(ctx, C_VDSO, ["-m32", "-O2"])
+    built, rc, out = compile_run(ctx, C_VDSO, ["-m32", "-O2"])
     if not built:
         return Skip("no 32-bit libc/headers installed")
     return Ok("vDSO works (32-bit compat / IA32_EMULATION)") if rc == 0 and "ok" in out \
@@ -108,7 +90,7 @@ def vdso32(ctx):
 
 @check(tier=1, name="stack_protector", desc="stack canary actually fires", requires=["gcc"])
 def stack_protector(ctx):
-    built, rc, _ = _compile_run(ctx, C_SSP, ["-O0", "-fstack-protector-strong"])
+    built, rc, _ = compile_run(ctx, C_SSP, ["-O0", "-fstack-protector-strong"])
     if not built:
         return Skip("could not compile test program")
     if rc in (134, -6):                # SIGABRT from __stack_chk_fail

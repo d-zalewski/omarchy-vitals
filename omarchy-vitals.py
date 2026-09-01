@@ -21,12 +21,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vitals import report as rp                                    # noqa: E402
 from vitals.core import Context, Status, run_check, select         # noqa: E402
 from vitals.checks import (audio, boot, drivers, graphics, health,  # noqa: E402,F401
-                          kernel_build, latency, network, peripherals,
-                          secureboot, stress, throughput)
+                          kernel_build, kernel_features, latency, network,
+                          peripherals, secureboot, stress, throughput)
 
 TIER_NAMES = {
     0: "health           (kernel faults, taint, failed units, deploy integrity, boot chain)",
-    1: "desktop hardware (gpu, audio, network, peripherals, drivers, toolchain)",
+    1: "desktop hardware (gpu, audio, network, peripherals, drivers, kernel features)",
     2: "latency/jitter   (cyclictest idle + under load)",
     3: "stress           (sustained load, thermal, disk I/O)",
     4: "suspend/resume   (S3 cycles, hardware returns)",

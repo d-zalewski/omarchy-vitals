@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import tempfile
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -53,6 +54,8 @@ HIGHER_IS_BETTER = {
     "ctxsw_ops_sec", "syscall_ops_sec", "sysbench_threads_events",
     "sysbench_cpu_eps", "memcpy_gb_sec", "loopback_gbit_s",
     "secure_boot", "luks_tpm_token",
+    "user_ns", "overlayfs", "seccomp", "kvm", "io_uring",
+    "aes_accelerated", "cgroup_controllers",
 }
 UNITS = {
     "cyclictest_idle_avg_us": "us", "cyclictest_idle_max_us": "us",
@@ -92,6 +95,27 @@ def Skip(message: str, **metrics) -> Result:
 
 def Info(message: str, **metrics) -> Result:
     return Result(Status.INFO, message, metrics)
+
+
+def compile_run(ctx, src: str, flags: list[str]):
+    """Compile a C probe and run it, returning (built, returncode, stdout).
+
+    Some kernel features can only be confirmed by asking the kernel for them
+    from C. Callers should require "gcc" or degrade when built is False.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        c, exe = Path(d) / "t.c", Path(d) / "t"
+        c.write_text(src)
+        cp = ctx.run(["gcc", *flags, "-o", str(exe), str(c)], timeout=90)
+        if cp.returncode != 0:
+            return False, None, cp.stderr
+        try:
+            # ulimit -c 0 keeps a deliberate abort from writing a core dump
+            r = subprocess.run(f"ulimit -c 0; {exe}", shell=True,
+                               capture_output=True, text=True, timeout=30)
+            return True, r.returncode, r.stdout
+        except Exception as exc:                       # noqa: BLE001
+            return True, None, str(exc)
 
 
 def sudo_refused(result) -> bool:

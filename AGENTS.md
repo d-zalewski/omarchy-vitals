@@ -126,7 +126,7 @@ required for tier 5.
 
 ## Tests — run them before and after any change
 
-332 unit tests, **100 % line coverage**, no network or hardware access. They run
+369 unit tests, **100 % line coverage**, no network or hardware access. They run
 in under a second on any machine, including one that is not the target.
 
 ```bash

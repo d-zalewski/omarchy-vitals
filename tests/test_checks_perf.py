@@ -285,35 +285,35 @@ class TestKernelBuild(unittest.TestCase):
         self.assertIs(kernel_build.bpftrace_attach(bad).status, Status.FAIL)
 
     def test_vdso64_pass_and_fail(self):
-        with mock.patch.object(kernel_build, "_compile_run",
+        with mock.patch.object(kernel_build, "compile_run",
                                return_value=(True, 0, "ok")):
             self.assertIs(kernel_build.vdso64(FakeContext()).status, Status.PASS)
-        with mock.patch.object(kernel_build, "_compile_run",
+        with mock.patch.object(kernel_build, "compile_run",
                                return_value=(True, 1, "")):
             self.assertIs(kernel_build.vdso64(FakeContext()).status, Status.FAIL)
-        with mock.patch.object(kernel_build, "_compile_run",
+        with mock.patch.object(kernel_build, "compile_run",
                                return_value=(False, None, "err")):
             self.assertIs(kernel_build.vdso64(FakeContext()).status, Status.SKIP)
 
     def test_vdso32_absent_libc_skips(self):
-        with mock.patch.object(kernel_build, "_compile_run",
+        with mock.patch.object(kernel_build, "compile_run",
                                return_value=(False, None, "no -m32")):
             self.assertIs(kernel_build.vdso32(FakeContext()).status, Status.SKIP)
 
     def test_stack_protector_must_abort(self):
         """A wrong guard is silent corruption, so the canary must actually fire."""
-        with mock.patch.object(kernel_build, "_compile_run",
+        with mock.patch.object(kernel_build, "compile_run",
                                return_value=(True, 134, "")):
             self.assertIs(kernel_build.stack_protector(FakeContext()).status,
                           Status.PASS)
-        with mock.patch.object(kernel_build, "_compile_run",
+        with mock.patch.object(kernel_build, "compile_run",
                                return_value=(True, 0, "")):
             self.assertIs(kernel_build.stack_protector(FakeContext()).status,
                           Status.WARN)
 
-    def test_compile_run_helper(self):
+    def testcompile_run_helper(self):
         ctx = FakeContext(commands={"gcc": cp("", 1, "compile error")})
-        built, rc, err = kernel_build._compile_run(ctx, "int main(){}", [])
+        built, rc, err = kernel_build.compile_run(ctx, "int main(){}", [])
         self.assertFalse(built)
 
     def test_modules_signed(self):
