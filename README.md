@@ -43,6 +43,17 @@ An [example comparison report](report/kernel-comparison.html) is included.
 
 ## Extending it
 
+Scaffold a check and its tests in one command — the generated tests cover every
+branch, so the suite passes immediately and stays at 100 %:
+
+```bash
+./new-check.py --module network --name wifi_regdomain \
+               --desc "regulatory domain is set" --requires iw --write
+```
+
+[CONTRIBUTING.md](CONTRIBUTING.md) walks through a complete example. The rest of
+this section is the shape it generates.
+
 A check is one decorated function. Keyword arguments become metrics that
 `compare` can diff. Drop it in `vitals/checks/<area>.py` — modules are imported
 in `omarchy-vitals.py`.
@@ -120,9 +131,13 @@ committed.
 
 ## Tests
 
+258 tests, 100 % coverage, no hardware or network access — they run anywhere in
+under a second.
+
 ```bash
-python3 -m unittest discover -s tests -q     # no dependencies
-./run-tests.sh                               # adds coverage if installed
+./run-tests.sh              # everything, with the 100 % coverage gate
+./run-tests.sh gpu          # just tests matching "gpu"
+./run-tests.sh --setup      # create .venv with coverage (optional, one-off)
 ```
 
 ## Optional tools
@@ -149,4 +164,6 @@ laptop suspend and battery.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Agent-facing usage notes are in [AGENTS.md](AGENTS.md).
+MIT. See [LICENSE](LICENSE).
+
+Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Agent usage notes: [AGENTS.md](AGENTS.md).

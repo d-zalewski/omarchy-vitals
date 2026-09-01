@@ -121,8 +121,17 @@ required for tier 5.
 in under a second on any machine, including one that is not the target.
 
 ```bash
-./run-tests.sh                                  # coverage + 100 % gate
-PYTHONPATH=tests python3 -m unittest discover -s tests -t tests -q   # no deps
+./run-tests.sh                 # everything, with the 100 % gate
+./run-tests.sh gpu             # filter by test name (method or class)
+./run-tests.sh --setup         # create .venv with coverage, one-off
+./run-tests.sh --no-coverage   # plain unittest, no dependencies at all
+```
+
+To add a check, scaffold it rather than writing boilerplate — the generated
+tests already cover every branch, so the coverage gate stays green:
+
+```bash
+./new-check.py --module graphics --name my_check --desc "..." --write
 ```
 
 **Coverage is enforced at 100 %** by `run-tests.sh` and CI. If you add a check,
