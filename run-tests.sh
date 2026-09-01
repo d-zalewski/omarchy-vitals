@@ -13,6 +13,9 @@ cd "$(dirname "$0")"
 
 BOLD=$'\033[1m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; RESET=$'\033[0m'
 
+# ARGS is expanded as "${ARGS[@]+...}" below: bash 3.2 (still the /bin/bash on
+# macOS) treats "${ARGS[@]}" on an empty array as an unset variable under
+# `set -u` and aborts before a single test runs.
 PATTERN=""; USE_COVERAGE=1; ARGS=()
 for a in "$@"; do
     case "$a" in
@@ -44,7 +47,7 @@ DISCOVER=(-m unittest discover -s tests -t tests)
 [[ -n "$PATTERN" ]] && DISCOVER+=(-k "$PATTERN")
 
 if [[ $USE_COVERAGE -eq 1 ]]; then
-    PYTHONPATH=tests "$PY" -m coverage run --source=vitals "${DISCOVER[@]}" "${ARGS[@]}"
+    PYTHONPATH=tests "$PY" -m coverage run --source=vitals "${DISCOVER[@]}" ${ARGS[@]+"${ARGS[@]}"}
     echo
     if PYTHONPATH=tests "$PY" -m coverage report --show-missing --fail-under=100; then
         echo "${GREEN}${BOLD}Coverage at 100%.${RESET}"
@@ -54,7 +57,7 @@ if [[ $USE_COVERAGE -eq 1 ]]; then
         exit 1
     fi
 else
-    PYTHONPATH=tests "$PY" "${DISCOVER[@]}" "${ARGS[@]}"
+    PYTHONPATH=tests "$PY" "${DISCOVER[@]}" ${ARGS[@]+"${ARGS[@]}"}
     if [[ -n "${COVERAGE_HINT:-}" ]]; then
         echo
         echo "${DIM}Tests passed. For the coverage gate: ./run-tests.sh --setup${RESET}"
