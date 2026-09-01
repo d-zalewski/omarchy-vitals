@@ -171,16 +171,17 @@ class TestDiscard(unittest.TestCase):
         self.assertIs(self.run_check(LSBLK_NO_TRIM).status, Status.SKIP)
 
     def test_dm_crypt_blocking_is_info_not_a_warning(self):
-        # Passing discards through dm-crypt leaks which blocks are in use, so
-        # refusing them is a defensible default.
+        # Over-provisioning means a modern controller copes without TRIM, and
+        # passing discards through dm-crypt leaks which blocks are in use.
         r = self.run_check(LSBLK_BLOCKED)
         self.assertIs(r.status, Status.INFO)
         self.assertIn("crypt", r.message)
         self.assertEqual(r.metrics["discard_reaches_drive"], 0)
 
-    def test_reaches_drive_but_no_timer_warns(self):
+    def test_reaches_drive_but_no_timer_is_info(self):
+        # Also not a warning: nothing is broken, the drive simply copes.
         r = self.run_check(LSBLK_OPEN, timer="disabled")
-        self.assertIs(r.status, Status.WARN)
+        self.assertIs(r.status, Status.INFO)
         self.assertIn("fstrim.timer", r.message)
 
     def test_fully_working_passes(self):

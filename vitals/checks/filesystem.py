@@ -9,8 +9,8 @@ months - scrub results, TRIM reaching the drive - are working at all.
   * btrfs_health - the error counters btrfs keeps and the last scrub result.
   * swap_zram    - swap exists, and zram is compressing rather than merely
     configured.
-  * discard      - TRIM survives every layer between the filesystem and the
-    drive. dm-crypt drops it by default, which nothing reports.
+  * discard      - whether TRIM survives every layer between the filesystem
+    and the drive. Recorded, not judged: modern controllers cope without it.
 """
 from __future__ import annotations
 
@@ -157,10 +157,16 @@ def swap_zram(ctx):
 
 @check(tier=1, name="discard", desc="TRIM reaches the drive through every layer")
 def discard(ctx):
-    """dm-crypt drops discards unless it was set up to pass them through.
+    """Records the state of the discard path without calling any of it a fault.
 
-    Nothing reports that. The drive quietly stops being told which blocks are
-    free, and its wear levelling degrades over months.
+    Over-provisioning means a modern controller garbage-collects perfectly well
+    without ever being told which blocks are free, so a missing TRIM path is
+    not a problem to fix on a drive with room to spare. It only becomes
+    measurable on one kept near-full under a write-heavy workload.
+
+    Worth recording anyway: the metric turns a change into a regression for
+    anyone who set the path up deliberately, and dm-crypt silently dropping
+    discards is not otherwise visible anywhere.
     """
     r = ctx.run(["lsblk", "-Dnrbo", "NAME,TYPE,DISC-MAX"], timeout=30)
     rows = [l.split() for l in r.stdout.splitlines() if len(l.split()) >= 3]
@@ -175,15 +181,14 @@ def discard(ctx):
     timer = ctx.run(["systemctl", "is-enabled", "fstrim.timer"],
                     timeout=30).stdout.strip()
     if blockers:
-        # Not a warning: passing discards through dm-crypt reveals which
-        # blocks are in use, so refusing them is a defensible default rather
-        # than a misconfiguration.
-        return Info(f"the drive supports TRIM but {'/'.join(blockers)} does not "
-                    f"pass it through, so the drive is never told which blocks "
-                    f"are free. Enabling it leaks which blocks are in use",
-                    discard_reaches_drive=0)
+        # Passing discards through dm-crypt reveals which blocks are in use,
+        # so refusing them is a defensible default, not a misconfiguration.
+        return Info(f"TRIM stops at {'/'.join(blockers)} - harmless with free "
+                    f"space to spare, and passing it through would leak which "
+                    f"blocks are in use", discard_reaches_drive=0)
     if timer != "enabled":
-        return Warn(f"TRIM reaches the drive but fstrim.timer is {timer or 'absent'}"
-                    f" - nothing ever issues it", discard_reaches_drive=1)
-    return Ok("TRIM reaches the drive and fstrim.timer is enabled",
+        return Info(f"TRIM reaches the drive but fstrim.timer is "
+                    f"{timer or 'absent'}, so nothing issues it",
+                    discard_reaches_drive=1)
+    return Ok("TRIM reaches the drive, fstrim.timer enabled",
               discard_reaches_drive=1)
