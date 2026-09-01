@@ -23,11 +23,13 @@ CHECKS = ROOT / "vitals" / "checks"
 
 MODULES = {
     "health": "tier 0 — kernel faults",
+    "boot": "tier 0 — deploy integrity, initramfs, microcode",
     "graphics": "tier 1 — GPU, displays, compositor",
     "audio": "tier 1 — sound",
     "network": "tier 1 — ethernet, wifi, bluetooth",
     "peripherals": "tier 1 — USB, input, storage, thermal",
     "kernel_build": "tier 1 — toolchain / kernel build",
+    "drivers": "tier 1 — module loading, DKMS, driver binding",
     "latency": "tier 2 — scheduling latency",
     "stress": "tier 3/4 — stress and suspend",
     "throughput": "tier 5 — kernel benchmarks",
@@ -35,11 +37,13 @@ MODULES = {
 
 TEST_FILE = {
     "health": "test_checks_health.py",
+    "boot": "test_checks_boot.py",
     "graphics": "test_checks_hardware.py",
     "audio": "test_checks_hardware.py",
     "network": "test_checks_hardware.py",
     "peripherals": "test_checks_hardware.py",
     "kernel_build": "test_checks_perf.py",
+    "drivers": "test_checks_drivers.py",
     "latency": "test_checks_perf.py",
     "stress": "test_checks_perf.py",
     "throughput": "test_checks_perf.py",

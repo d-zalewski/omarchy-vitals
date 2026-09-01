@@ -42,6 +42,7 @@ LOWER_IS_BETTER = {
     "oops_count", "warn_count", "mce_count", "failed_units", "probe_failures",
     "gpu_hangs", "audio_xruns", "taint", "oom_events", "stress_new_oops",
     "resume_errors", "btrfs_scrub_errors", "stress_peak_temp_c",
+    "dkms_missing", "pci_unbound", "kernel_reboot_pending",
     # tier 5: time-per-operation and latency percentiles
     "ctxsw_usecs_op", "syscall_usecs_op", "sched_messaging_sec",
     "sysbench_threads_p95_ms",
