@@ -81,6 +81,9 @@ is suspect. Say so rather than reporting the deltas as findings.
   running release against the installed module trees. If it WARNs, a newer
   kernel is installed and the machine has not rebooted - the report is named
   after the kernel that produced it, which is not the one you meant to test.
+- **`secure_boot` never fails, by design.** Most machines run without it.
+  It records a metric instead, so `compare` reports a 1 -> 0 flip as a
+  regression on the machines where it was on, and says nothing on the rest.
 - **`perf` is version-locked to its kernel.** Checks SKIP on mismatch by design.
   If you see four `perf_*` SKIPs, that is the guard working, not missing data —
   do not "fix" it by forcing them to run.
@@ -104,9 +107,10 @@ be using: heavy sustained load, an audible tone, and actual S3 suspend cycles.
 - **Never run tier 4 on a remote machine you cannot physically reach** unless
   suspend/resume is already known to work there. A failed resume needs a power
   button.
-- Some checks need passwordless `sudo` (cyclictest, bpftrace, rtcwake, and
-  `module_load`, which modprobes an inert module and unloads it again). They
-  degrade to SKIP or WARN without it rather than failing.
+- Some checks need passwordless `sudo` (cyclictest, bpftrace, rtcwake,
+  `efi_signatures`, `luks_tpm`, and `module_load`, which modprobes an inert
+  module and unloads it again). They degrade to SKIP or WARN without it
+  rather than failing.
 
 ## Optional tools
 
@@ -114,7 +118,7 @@ Checks skip cleanly when a tool is absent; coverage improves with:
 
 ```bash
 sudo pacman -S rt-tests stress-ng fio bpftrace usbutils smartmontools \
-               mesa-utils libva-utils sysbench perf iperf3
+               mesa-utils libva-utils sysbench perf iperf3 sbctl
 ```
 
 `rt-tests` is required for tier 2 (the jitter tier). `perf` and `sysbench` are
@@ -122,7 +126,7 @@ required for tier 5.
 
 ## Tests — run them before and after any change
 
-311 unit tests, **100 % line coverage**, no network or hardware access. They run
+332 unit tests, **100 % line coverage**, no network or hardware access. They run
 in under a second on any machine, including one that is not the target.
 
 ```bash

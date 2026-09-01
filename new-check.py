@@ -24,6 +24,7 @@ CHECKS = ROOT / "vitals" / "checks"
 MODULES = {
     "health": "tier 0 — kernel faults",
     "boot": "tier 0 — deploy integrity, initramfs, microcode",
+    "secureboot": "tier 0/1 — Secure Boot, signed binaries, TPM, LUKS",
     "graphics": "tier 1 — GPU, displays, compositor",
     "audio": "tier 1 — sound",
     "network": "tier 1 — ethernet, wifi, bluetooth",
@@ -38,6 +39,7 @@ MODULES = {
 TEST_FILE = {
     "health": "test_checks_health.py",
     "boot": "test_checks_boot.py",
+    "secureboot": "test_checks_secureboot.py",
     "graphics": "test_checks_hardware.py",
     "audio": "test_checks_hardware.py",
     "network": "test_checks_hardware.py",

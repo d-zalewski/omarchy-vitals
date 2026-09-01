@@ -42,7 +42,7 @@ LOWER_IS_BETTER = {
     "oops_count", "warn_count", "mce_count", "failed_units", "probe_failures",
     "gpu_hangs", "audio_xruns", "taint", "oom_events", "stress_new_oops",
     "resume_errors", "btrfs_scrub_errors", "stress_peak_temp_c",
-    "dkms_missing", "pci_unbound", "kernel_reboot_pending",
+    "dkms_missing", "pci_unbound", "kernel_reboot_pending", "efi_unsigned",
     # tier 5: time-per-operation and latency percentiles
     "ctxsw_usecs_op", "syscall_usecs_op", "sched_messaging_sec",
     "sysbench_threads_p95_ms",
@@ -52,6 +52,7 @@ HIGHER_IS_BETTER = {
     # tier 5: operations-per-second and bandwidth
     "ctxsw_ops_sec", "syscall_ops_sec", "sysbench_threads_events",
     "sysbench_cpu_eps", "memcpy_gb_sec", "loopback_gbit_s",
+    "secure_boot", "luks_tpm_token",
 }
 UNITS = {
     "cyclictest_idle_avg_us": "us", "cyclictest_idle_max_us": "us",
@@ -91,6 +92,16 @@ def Skip(message: str, **metrics) -> Result:
 
 def Info(message: str, **metrics) -> Result:
     return Result(Status.INFO, message, metrics)
+
+
+def sudo_refused(result) -> bool:
+    """True when `sudo -n` declined, rather than the command itself failing.
+
+    Checks that need root degrade to SKIP in that case, so a machine without
+    passwordless sudo does not read as broken.
+    """
+    text = (result.stderr or "") + (result.stdout or "")
+    return "password is required" in text or "a terminal is required" in text
 
 
 @dataclass

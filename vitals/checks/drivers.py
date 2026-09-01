@@ -20,7 +20,7 @@ import platform
 import re
 from pathlib import Path
 
-from ..core import Fail, Info, Ok, Skip, Warn, check
+from ..core import Fail, Info, Ok, Skip, Warn, check, sudo_refused
 
 # Loaded and immediately unloaded to prove the path works. Each is inert: it
 # creates no device and changes no behaviour. The first one not already loaded
@@ -48,12 +48,6 @@ PCI_CLASSES = {
     "0x0805": "SD host controller",
     "0x0c03": "USB controller", "0x0c04": "fibre channel",
 }
-
-
-def _sudo_refused(r) -> bool:
-    """sudo -n declining is a Skip, not a failure of what we were testing."""
-    text = (r.stderr or "") + (r.stdout or "")
-    return "password is required" in text or "a terminal is required" in text
 
 
 def _probe_candidate(ctx, loaded):
@@ -93,7 +87,7 @@ def module_load(ctx):
         args.append("numdummies=0")          # do not create a dummy0 interface
     r = ctx.sudo(args, timeout=30)
     if r.returncode != 0:
-        if _sudo_refused(r):
+        if sudo_refused(r):
             return Skip("needs passwordless sudo")
         err = ((r.stderr or r.stdout).strip().splitlines() or [f"rc={r.returncode}"])[-1]
         hint = next((h for pat, h in MODPROBE_HINTS if pat in err), "")
