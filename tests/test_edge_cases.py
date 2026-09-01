@@ -6,6 +6,7 @@ fault is worse than no check at all.
 """
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -132,8 +133,8 @@ class TestStressFallbacks(unittest.TestCase):
         self.assertIn("throttling", r.message)
 
     def test_disk_io_cleanup_error_is_tolerated(self):
-        terse = ";".join(["0"] * 7 + ["999"] + ["0"] * 10)
-        ctx = FakeContext(commands={"fio": cp(terse)})
+        out = json.dumps({"jobs": [{"read": {"iops": 999.0}}]})
+        ctx = FakeContext(commands={"findmnt": cp("btrfs\n"), "fio": cp(out)})
         leftover = mock.MagicMock()
         leftover.unlink.side_effect = OSError("busy")
         with mock.patch.object(Path, "glob", return_value=[leftover]):

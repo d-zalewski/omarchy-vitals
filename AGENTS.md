@@ -84,6 +84,10 @@ is suspect. Say so rather than reporting the deltas as findings.
 - **`secure_boot` never fails, by design.** Most machines run without it.
   It records a metric instead, so `compare` reports a 1 -> 0 flip as a
   regression on the machines where it was on, and says nothing on the rest.
+- **Disk numbers before this change measured tmpfs.** `disk_io` used to
+  run in /tmp, which is RAM on a systemd machine, so `fio_randread_iops`
+  in any older report is a memcpy figure. Do not compare it against a
+  new one.
 - **`perf` is version-locked to its kernel.** Checks SKIP on mismatch by design.
   If you see four `perf_*` SKIPs, that is the guard working, not missing data —
   do not "fix" it by forcing them to run.
@@ -126,7 +130,7 @@ required for tier 5.
 
 ## Tests — run them before and after any change
 
-369 unit tests, **100 % line coverage**, no network or hardware access. They run
+376 unit tests, **100 % line coverage**, no network or hardware access. They run
 in under a second on any machine, including one that is not the target.
 
 ```bash

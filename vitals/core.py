@@ -44,12 +44,14 @@ LOWER_IS_BETTER = {
     "gpu_hangs", "audio_xruns", "taint", "oom_events", "stress_new_oops",
     "resume_errors", "btrfs_scrub_errors", "stress_peak_temp_c",
     "dkms_missing", "pci_unbound", "kernel_reboot_pending", "efi_unsigned",
+    "journal_errors", "fio_randwrite_lat_us",
     # tier 5: time-per-operation and latency percentiles
     "ctxsw_usecs_op", "syscall_usecs_op", "sched_messaging_sec",
     "sysbench_threads_p95_ms",
 }
 HIGHER_IS_BETTER = {
-    "fio_randread_iops", "btf_modules", "stress_bogo_ops",
+    "fio_randread_iops", "fio_randwrite_iops", "btf_modules",
+    "stress_bogo_ops",
     # tier 5: operations-per-second and bandwidth
     "ctxsw_ops_sec", "syscall_ops_sec", "sysbench_threads_events",
     "sysbench_cpu_eps", "memcpy_gb_sec", "loopback_gbit_s",
@@ -57,13 +59,20 @@ HIGHER_IS_BETTER = {
     "user_ns", "overlayfs", "seccomp", "kvm", "io_uring",
     "aes_accelerated", "cgroup_controllers",
 }
+# The C probes compile_run() builds. stack_protector deliberately aborts
+# one, which systemd-coredump logs at error priority, so journal_errors
+# needs to recognise the suite's own noise. Kept under 15 characters, the
+# width of a comm field.
+PROBE_NAME = "vitals-probe"
+
 UNITS = {
     "cyclictest_idle_avg_us": "us", "cyclictest_idle_max_us": "us",
     "cyclictest_loaded_avg_us": "us", "cyclictest_loaded_max_us": "us",
     "hackbench_sec": "s", "stress_peak_temp_c": "C",
     "btf_vmlinux_bytes": "B", "swap_kb": "kB",
     "boot_userspace_ms": "ms", "boot_initrd_ms": "ms", "boot_kernel_ms": "ms",
-    "fio_randread_iops": "IOPS",
+    "fio_randread_iops": "IOPS", "fio_randwrite_iops": "IOPS",
+    "fio_randwrite_lat_us": "us",
     "ctxsw_usecs_op": "us", "syscall_usecs_op": "us",
     "sched_messaging_sec": "s", "sysbench_threads_p95_ms": "ms",
     "memcpy_gb_sec": "GB/s", "loopback_gbit_s": "Gb/s",
@@ -104,7 +113,8 @@ def compile_run(ctx, src: str, flags: list[str]):
     from C. Callers should require "gcc" or degrade when built is False.
     """
     with tempfile.TemporaryDirectory() as d:
-        c, exe = Path(d) / "t.c", Path(d) / "t"
+        c = Path(d) / f"{PROBE_NAME}.c"
+        exe = Path(d) / PROBE_NAME
         c.write_text(src)
         cp = ctx.run(["gcc", *flags, "-o", str(exe), str(c)], timeout=90)
         if cp.returncode != 0:

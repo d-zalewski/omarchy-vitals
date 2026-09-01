@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import subprocess
+import json
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -10,6 +11,12 @@ from helpers import FakeContext, cp  # noqa: E402
 
 from vitals.checks import kernel_build, latency, stress, throughput  # noqa: E402
 from vitals.core import Status  # noqa: E402
+
+FIO_JSON = json.dumps({"jobs": [{"read": {"iops": 12345.0},
+                                 "write": {"iops": 9509.0,
+                                           "lat_ns": {"mean": 103213.0}}}]})
+BTRFS = cp("btrfs\n")
+
 
 CYCLICTEST = "T: 0 (1234) P:80 I:200 C:  10000 Min:      2 Act:    3 Avg:    5 Max:     900"
 
@@ -243,22 +250,39 @@ class TestStressAndSuspend(unittest.TestCase):
         self.assertIs(r.status, Status.WARN)
         self.assertGreater(r.metrics["resume_errors"], 0)
 
+    def disk_ctx(self, fio_result):
+        return FakeContext(commands={"findmnt": BTRFS, "fio": fio_result})
+
     def test_disk_io_parses_iops(self):
-        terse = ";".join(["0"] * 7 + ["12345"] + ["0"] * 10)
-        ctx = FakeContext(commands={"fio": cp(terse)})
         with mock.patch.object(Path, "glob", return_value=[]):
-            r = stress.disk_io(ctx)
+            r = stress.disk_io(self.disk_ctx(cp(FIO_JSON)))
         self.assertEqual(r.metrics["fio_randread_iops"], 12345)
+        self.assertIn("btrfs", r.message)
+
+    def test_disk_write_parses_iops_and_latency(self):
+        with mock.patch.object(Path, "glob", return_value=[]):
+            r = stress.disk_write(self.disk_ctx(cp(FIO_JSON)))
+        self.assertIs(r.status, Status.PASS)
+        self.assertEqual(r.metrics["fio_randwrite_iops"], 9509)
+        self.assertEqual(r.metrics["fio_randwrite_lat_us"], 103.2)
+
+    def test_disk_checks_skip_when_only_tmpfs(self):
+        # /tmp is tmpfs on most systems; testing there measures RAM.
+        ctx = FakeContext(commands={"findmnt": cp("tmpfs\n")})
+        self.assertIs(stress.disk_io(ctx).status, Status.SKIP)
+        self.assertIs(stress.disk_write(ctx).status, Status.SKIP)
 
     def test_disk_io_failure_warns(self):
-        ctx = FakeContext(commands={"fio": cp("", 1, "no space")})
         with mock.patch.object(Path, "glob", return_value=[]):
-            self.assertIs(stress.disk_io(ctx).status, Status.WARN)
+            self.assertIs(stress.disk_io(self.disk_ctx(cp("", 1, "no space"))).status,
+                          Status.WARN)
+            self.assertIs(stress.disk_write(self.disk_ctx(cp("", 1, "no space"))).status,
+                          Status.WARN)
 
     def test_disk_io_unparseable(self):
-        ctx = FakeContext(commands={"fio": cp("garbage")})
         with mock.patch.object(Path, "glob", return_value=[]):
-            self.assertIs(stress.disk_io(ctx).status, Status.INFO)
+            self.assertIs(stress.disk_io(self.disk_ctx(cp("garbage"))).status,
+                          Status.WARN)
 
 
 class TestKernelBuild(unittest.TestCase):

@@ -1,7 +1,9 @@
 """Tier 0 - health scan. Fast, non-disruptive, catches real faults."""
 from __future__ import annotations
 
-from ..core import Fail, Info, Ok, Warn, check
+import json
+
+from ..core import PROBE_NAME, Fail, Info, Ok, Skip, Warn, check
 
 # Bit meanings from Documentation/admin-guide/tainted-kernels.rst. Only some
 # indicate a fault; an out-of-tree module (e.g. a DKMS driver) is expected.
@@ -111,3 +113,42 @@ def boot_time(ctx):
     # unlocking from the TPM - useful signal on an encrypted box.
     msg = out.strip().splitlines()[-1] if out.strip() else "n/a"
     return Info(msg[:90], **m)
+
+
+@check(tier=0, name="journal_errors", desc="error-priority log lines this boot")
+def journal_errors(ctx):
+    """The userspace half of the log, which the kernel greps above cannot see.
+
+    `failed_units` catches a unit that gave up; this catches one erroring
+    loudly while still running. Counts are reported by source rather than by
+    message, because journal text carries usernames and paths and these
+    reports get committed.
+
+    WARN, never FAIL: a couple of error-priority lines is normal on a healthy
+    machine - firmware capability notices ("SGX disabled by BIOS") are logged
+    at that level and mean nothing is wrong.
+    """
+    r = ctx.run(["journalctl", "-b", "0", "-p", "err", "--no-pager", "-q",
+                 "-o", "json", "--output-fields=SYSLOG_IDENTIFIER,MESSAGE"],
+                timeout=120)
+    if r.returncode != 0:
+        return Skip("journalctl could not read the journal")
+    sources: dict = {}
+    for line in r.stdout.splitlines():
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        message = entry.get("MESSAGE") or ""
+        # stack_protector aborts a probe on purpose and systemd-coredump logs
+        # it. The suite should not report its own noise as a machine fault.
+        if isinstance(message, str) and PROBE_NAME in message:
+            continue
+        ident = entry.get("SYSLOG_IDENTIFIER") or "unknown"
+        sources[ident] = sources.get(ident, 0) + 1
+    total = sum(sources.values())
+    if total == 0:
+        return Ok("no error-priority log lines", journal_errors=0)
+    top = ", ".join(f"{k}:{n}" for k, n in
+                    sorted(sources.items(), key=lambda kv: -kv[1])[:4])
+    return Warn(f"{total} error-priority line(s) - {top}", journal_errors=total)

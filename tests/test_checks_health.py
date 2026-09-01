@@ -1,6 +1,7 @@
 """Tier 0 health checks."""
 from __future__ import annotations
 
+import json
 import unittest
 
 from helpers import FakeContext, cp  # noqa: E402
@@ -118,3 +119,51 @@ class TestModulesAndBoot(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def journal_json(*entries):
+    """One JSON object per line, the way `journalctl -o json` emits them."""
+    return "".join(json.dumps(e) + "\n" for e in entries)
+
+
+class TestJournalErrors(unittest.TestCase):
+    def run_check(self, stdout="", rc=0):
+        return health.journal_errors(
+            FakeContext(commands={"journalctl": cp(stdout, rc)}))
+
+    def test_unreadable_journal_skips(self):
+        self.assertIs(self.run_check(rc=1).status, Status.SKIP)
+
+    def test_clean_boot_passes(self):
+        r = self.run_check("")
+        self.assertIs(r.status, Status.PASS)
+        self.assertEqual(r.metrics["journal_errors"], 0)
+
+    def test_counts_by_source(self):
+        out = journal_json(
+            {"SYSLOG_IDENTIFIER": "kernel", "MESSAGE": "SGX disabled by BIOS"},
+            {"SYSLOG_IDENTIFIER": "kernel", "MESSAGE": "TDX not supported"},
+            {"SYSLOG_IDENTIFIER": "sddm-helper", "MESSAGE": "keyring locked"})
+        r = self.run_check(out)
+        self.assertIs(r.status, Status.WARN)
+        self.assertEqual(r.metrics["journal_errors"], 3)
+        self.assertIn("kernel:2", r.message)
+        # the message text itself never reaches the report
+        self.assertNotIn("keyring", r.message)
+
+    def test_ignores_the_suites_own_probe_crash(self):
+        # stack_protector aborts a probe on purpose; systemd-coredump logs it.
+        out = journal_json(
+            {"SYSLOG_IDENTIFIER": "systemd-coredump",
+             "MESSAGE": "Process 5848 (vitals-probe) terminated abnormally"})
+        r = self.run_check(out)
+        self.assertIs(r.status, Status.PASS)
+        self.assertEqual(r.metrics["journal_errors"], 0)
+
+    def test_malformed_and_binary_entries(self):
+        out = ("not json\n" + journal_json(
+            {"MESSAGE": [72, 105]},                    # binary message, no id
+            {"SYSLOG_IDENTIFIER": "foo", "MESSAGE": None}))
+        r = self.run_check(out)
+        self.assertEqual(r.metrics["journal_errors"], 2)
+        self.assertIn("unknown:1", r.message)
