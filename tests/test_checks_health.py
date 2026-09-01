@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import unittest
 
+from fakefs import fake_fs  # noqa: E402
 from helpers import FakeContext, cp  # noqa: E402
 
 from vitals.checks import health  # noqa: E402
@@ -115,6 +116,60 @@ class TestModulesAndBoot(unittest.TestCase):
         r = health.boot_time(FakeContext(commands={"systemd-analyze": cp("")}))
         self.assertIs(r.status, Status.INFO)
         self.assertNotIn("boot_kernel_ms", r.metrics)
+
+
+class TestCpuVulnerabilities(unittest.TestCase):
+    BASE = "/sys/devices/system/cpu/vulnerabilities"
+
+    def ctx(self, cmdline="root=UUID=deadbeef rw quiet", **states):
+        files = {f"{self.BASE}/{k}": v for k, v in states.items()}
+        files["/proc/cmdline"] = cmdline
+        return FakeContext(files=files)
+
+    def tree(self, *names):
+        return {self.BASE: list(names)}
+
+    def test_absent_directory_skips(self):
+        with fake_fs({}):
+            self.assertIs(health.cpu_vulnerabilities(FakeContext()).status,
+                          Status.SKIP)
+
+    def test_unreadable_entries_skip(self):
+        with fake_fs(self.tree("spectre_v2")):
+            self.assertIs(health.cpu_vulnerabilities(FakeContext()).status,
+                          Status.SKIP)
+
+    def test_all_mitigated_passes(self):
+        ctx = self.ctx(spectre_v2="Mitigation: Enhanced IBRS",
+                       meltdown="Not affected")
+        with fake_fs(self.tree("spectre_v2", "meltdown")):
+            r = health.cpu_vulnerabilities(ctx)
+        self.assertIs(r.status, Status.PASS)
+        self.assertEqual(r.metrics["cpu_vulnerable"], 0)
+
+    def test_unmitigated_warns(self):
+        ctx = self.ctx(spectre_v2="Vulnerable: IBPB not enabled",
+                       meltdown="Not affected")
+        with fake_fs(self.tree("spectre_v2", "meltdown")):
+            r = health.cpu_vulnerabilities(ctx)
+        self.assertIs(r.status, Status.WARN)
+        self.assertEqual(r.metrics["cpu_vulnerable"], 1)
+        self.assertIn("spectre_v2", r.message)
+
+    def test_mitigations_off_is_a_choice_not_a_warning(self):
+        """A deliberate boot option must not read as a fault."""
+        ctx = self.ctx(cmdline="root=UUID=deadbeef mitigations=off",
+                       spectre_v2="Vulnerable", mds="Vulnerable")
+        with fake_fs(self.tree("spectre_v2", "mds")):
+            r = health.cpu_vulnerabilities(ctx)
+        self.assertIs(r.status, Status.INFO)
+        self.assertEqual(r.metrics["cpu_vulnerable"], 2)
+
+    def test_command_line_is_never_quoted_back(self):
+        ctx = self.ctx(spectre_v2="Vulnerable")
+        with fake_fs(self.tree("spectre_v2")):
+            r = health.cpu_vulnerabilities(ctx)
+        self.assertNotIn("UUID", r.message)
 
 
 if __name__ == "__main__":

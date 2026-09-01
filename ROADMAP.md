@@ -1,43 +1,34 @@
 # Roadmap
 
-Checks that have been proposed and not yet written, the ones deliberately
-rejected, and the conventions that any new check is expected to follow.
+Checks that have been written but not yet run on real hardware, the ones
+deliberately rejected, and the conventions that any new check is expected to
+follow.
 
 ## Where the suite stands
 
-88 checks. 401 tests at 100 % line coverage, passing on Python 3.11 through
-3.14. Everything currently in the suite has been run against real hardware,
-not only against its unit tests.
+97 checks. 478 tests at 100 % line coverage, passing on Python 3.11 through
+3.14. Everything here has been run against real hardware except the three items
+in the next section.
+
+## Still unproven on hardware
+
+The nine checks added most recently were run on the Omarchy mini PC
+(7.2.2-5-omarchy-bore, Intel UHD 600, Hyprland 0.56.2). Six pass there,
+`screenshot` was fixed twice against it, and these three could not be
+exercised:
+
+| Gap | Why | What would settle it |
+|---|---|---|
+| `bluetooth_scan` | That machine has no bluetooth hardware, so the check skips before doing anything | A box with an adapter: confirm `bluetoothctl --timeout 10 scan on` exists in the installed bluez, and that "No default controller" is the wording when the radio is unusable |
+| `resume_functional` | Tier 4, not run - it suspends the machine, and a failed resume needs a power button | Run it from a keyboard you can reach; confirm all three probes answer *before* the cycle, or the check skips itself |
+| `clock_after_resume` | Same | Confirm `CLOCK_BOOTTIME` minus `CLOCK_MONOTONIC` really is the sleep length, and that NTP does not step the clock often enough to make the warning routine |
 
 ## Proposed, not yet written
 
-**Desktop, proven rather than enumerated.** Two are worth doing on any machine
-with a session:
-
-| Check | Proves | Needs |
-|---|---|---|
-| `screenshot` | A frame is captured at monitor resolution and its compressed size is far above a blank frame's. The strongest "the desktop actually renders" test available, and it works over SSH through `run_in_session`. | `grim` |
-| `screencast_portal` | `org.freedesktop.portal.ScreenCast` answers over the session bus. Screen sharing breaks quietly and is noticed during a call. | `busctl` |
-
-Three more only pay off on hardware that has the device, and skip cleanly
-otherwise: `gl_render` (a few frames of real offscreen GL, needing `glmark2`),
-`libinput_devices` (the input stack reporting capabilities rather than
-`/proc/bus/input/devices` text), and `bluetooth_scan` (discovery finding
-devices; count only, never addresses).
-
-**Post-resume correctness.** Tier 4 today compares device *names* before and
-after suspend, so a NIC that returns as a node but not as a working link
-passes. `resume_functional` would re-run a handful of probes after the cycles -
-DNS resolves, the GPU render node works, audio still opens. `clock_after_resume`
-would confirm `CLOCK_BOOTTIME` advanced consistently across the sleep;
-timekeeping regressions across suspend are a real bug class nothing here sees.
-
-Both need care: never run tier 4 on a machine you cannot physically reach.
-
-**Smaller ones.** `cpu_vulnerabilities` (anything reporting `Vulnerable` in
-`/sys/devices/system/cpu/vulnerabilities/`, since a config trim can quietly
-drop a mitigation) and `cpuidle` (deep C-state usage counters non-zero - a
-machine that never idles benchmarks fine and just runs hot).
+Nothing outstanding. The standing wish is the one in
+[CONTRIBUTING.md](CONTRIBUTING.md): checks for hardware that isn't here to test
+against - NVIDIA and AMD graphics, wifi, laptop suspend, batteries, external
+displays.
 
 ## Rejected
 
@@ -58,12 +49,17 @@ failing wifi checks makes a suite people mute.
 machines run without Secure Boot, and modern SSD controllers cope without TRIM.
 Both record a metric instead, so `compare` reports a change as a regression on
 the machines where the thing was set up deliberately, and says nothing on the
-rest. A check that cries wolf is one people learn to skim.
+rest. `cpu_vulnerabilities` is the same shape for a different reason - plenty of
+desktops boot `mitigations=off` on purpose. A check that cries wolf is one
+people learn to skim.
 
 **Reports carry no identifying data.** They get committed. That rules out
 hostnames, TPM PCR digests, LUKS UUIDs, journal message text and module signer
 names - all of which a check has wanted to include at some point. Report counts
-and states.
+and states. The one identifier a report carries is `machine_id`, a digest of
+`/etc/machine-id` that `compare` uses to notice two reports from different
+machines; it reveals neither the id nor the name, and the committed examples
+carry an obvious placeholder rather than a real one.
 
 **Probe the target before writing the parser.** Every check here that was
 written from a plausible assumption about output format had the assumption
@@ -79,27 +75,39 @@ turn out wrong:
 - The suite's own `stack_protector` probe aborts on purpose, and
   systemd-coredump logs that at error priority - so `journal_errors` was
   reporting a fault the suite itself caused.
+- Hyprland's own `/proc/<pid>/environ` carries no `WAYLAND_DISPLAY`: it creates
+  the socket after exec and exports it only to children. hyprctl and wpctl
+  never noticed, because they find the session by signature and runtime
+  directory - but grim connected to `wayland-0` and died with "failed to create
+  display". `session_env` now recovers the socket name the same way it already
+  recovered the Hyprland instance signature.
+- grim blocks forever on an output that is not rendering; wlr-screencopy simply
+  never delivers a frame. Capturing the whole layout therefore hangs on any
+  machine with a second monitor asleep, so `screenshot` names one output.
+- `dpmsStatus: false` does not mean "cannot be captured". The VNC output on the
+  test machine reports asleep and still returns a frame instantly, so DPMS is
+  used to *explain* a blank frame rather than to refuse to take one.
+- The blank-frame threshold was guessed at 3 KB and measured at 6,121 bytes for
+  a blank 1920x1080 output. The same output awake is 98 KB, a 4K output awake
+  is 287 KB, and the whole two-monitor layout is 699 KB - so 16 KB separates
+  them by an order of magnitude in both directions.
+- The unsuffixed `glmark2` binary is the GLX build and dies with "Could not
+  initialize canvas" in a Wayland session, however healthy the GPU is.
+  `glmark2-wayland` scores 603-624 on the same machine and the same GPU.
+- The `libinput` CLI is packaged as `libinput-tools`; the `libinput` package
+  is the library, is already installed everywhere, and ships no binary.
 
 **Prefer a functional probe to a config read.** `modules_signed` reads the
 config; `module_sig` asks `modinfo` about a real module. `gpu_accel` reads a
-renderer string; `gl_render` would submit frames. The config is not the thing
-userspace depends on.
+renderer string; `gl_render` submits frames. `suspend_resume` compares device
+names; `resume_functional` re-runs the probes. The config, and the name, is not
+the thing userspace depends on.
 
 **Keep the coverage gate platform-independent.** Bind Linux-only functions once
-at import (`FADVISE = getattr(os, "posix_fadvise", None)`) rather than probing
+at import (`FADVISE = getattr(os, "posix_fadvise", None)`,
+`CLOCK_BOOTTIME = getattr(time, "CLOCK_BOOTTIME", None)`) rather than probing
 with `hasattr` at call time, so the same lines are exercised wherever the tests
 run.
-
-## Known defects, unfixed
-
-- **Reports leak the hostname.** `build_report` writes `platform.node()`, while
-  the README states reports carry no identifying data. Both committed examples
-  say `example-host`, so they were scrubbed by hand. Drop the field or hash it.
-- **`.coverage` is tracked in git**, so every local test run shows a spurious
-  diff. It wants `.gitignore` and a `git rm --cached`.
-- **`run-tests.sh` fails on bash 3.2** (`ARGS[@]: unbound variable` under
-  `set -u` with an empty array). Harmless on the Arch target, awkward when
-  developing on macOS.
 
 ## Verifying a change on real hardware
 
@@ -111,6 +119,15 @@ COPYFILE_DISABLE=1 tar czf - --exclude .git --exclude __pycache__ . \
   | ssh user@host 'rm -rf /tmp/ov && mkdir -p /tmp/ov && tar xzf - -C /tmp/ov \
                    && cd /tmp/ov && python3 omarchy-vitals.py --only <names> \
                       --tier all --no-report'
+```
+
+The nine above, in one go - tier 4 last, and only from a keyboard you can
+reach:
+
+```bash
+--only screenshot,screencast_portal,gl_render,libinput_devices,cpuidle,\
+bluetooth_scan,cpu_vulnerabilities
+--only resume_functional,clock_after_resume --tier 4
 ```
 
 Then confirm nothing was left behind - loaded modules, temporary files, kernel

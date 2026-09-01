@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from ..core import PROBE_NAME, Fail, Info, Ok, Skip, Warn, check
+
+VULNERABILITIES = Path("/sys/devices/system/cpu/vulnerabilities")
 
 # Bit meanings from Documentation/admin-guide/tainted-kernels.rst. Only some
 # indicate a fault; an out-of-tree module (e.g. a DKMS driver) is expected.
@@ -152,3 +155,40 @@ def journal_errors(ctx):
     top = ", ".join(f"{k}:{n}" for k, n in
                     sorted(sources.items(), key=lambda kv: -kv[1])[:4])
     return Warn(f"{total} error-priority line(s) - {top}", journal_errors=total)
+
+
+@check(tier=0, name="cpu_vulnerabilities", desc="CPU mitigations still applied")
+def cpu_vulnerabilities(ctx):
+    """A config trim can drop a mitigation with no other symptom at all.
+
+    Reported, never failed: plenty of desktops boot `mitigations=off` on
+    purpose for the throughput, and a check that fails on a deliberate choice
+    is one people mute. The count is a metric, so `compare` catches a kernel
+    that quietly stopped mitigating something the last one handled - which is
+    the case worth knowing about.
+
+    Names of the vulnerabilities, never the kernel command line, which carries
+    root device UUIDs.
+    """
+    if not VULNERABILITIES.is_dir():
+        return Skip("kernel does not report CPU vulnerabilities")
+    vulnerable, total = [], 0
+    for f in sorted(VULNERABILITIES.iterdir()):
+        state = ctx.read(str(f), "")
+        if not state:
+            continue
+        total += 1
+        if state.startswith("Vulnerable"):
+            vulnerable.append(f.name)
+    if total == 0:
+        return Skip("vulnerabilities directory is empty")
+    if not vulnerable:
+        return Ok(f"{total} entries, all mitigated or not affected",
+                  cpu_vulnerable=0)
+    listed = ", ".join(vulnerable[:5])
+    if "mitigations=off" in ctx.read("/proc/cmdline", ""):
+        return Info(f"{len(vulnerable)}/{total} unmitigated by choice "
+                    f"(mitigations=off on the kernel command line): {listed}",
+                    cpu_vulnerable=len(vulnerable))
+    return Warn(f"{len(vulnerable)}/{total} unmitigated: {listed}",
+                cpu_vulnerable=len(vulnerable))

@@ -99,6 +99,10 @@ is suspect. Say so rather than reporting the deltas as findings.
   look at `ctxsw_usecs_op` and `hackbench_sec` for ordinary task scheduling.
 - **`stress-ng` bogo-ops are not a benchmark** (stress-ng's own documentation
   says so). Only compare them within one stress-ng version on one machine.
+- **A report identifies its machine, not its owner.** `machine_id` is a digest
+  of `/etc/machine-id` - no hostname anywhere in the file. `compare` prints a
+  line when A and B carry different ones, which means the two runs are from
+  different boxes and none of the deltas mean anything.
 - **One run per kernel cannot resolve a few percent.** If a difference matters,
   repeat it and report the spread. Several tiers take minutes; budget for it.
 
@@ -108,6 +112,8 @@ Tiers 3 and 4 and the `audio_playback` check will affect a machine someone may
 be using: heavy sustained load, an audible tone, and actual S3 suspend cycles.
 
 - Pass `--skip-disruptive` when the machine is in use or is remote-only.
+- Tier 4 suspends the machine four times: two cycles for `suspend_resume`, one
+  each for `resume_functional` and `clock_after_resume`.
 - **Never run tier 4 on a remote machine you cannot physically reach** unless
   suspend/resume is already known to work there. A failed resume needs a power
   button.
@@ -122,15 +128,20 @@ Checks skip cleanly when a tool is absent; coverage improves with:
 
 ```bash
 sudo pacman -S rt-tests stress-ng fio bpftrace usbutils smartmontools \
-               mesa-utils libva-utils sysbench perf iperf3 sbctl
+               mesa-utils libva-utils sysbench perf iperf3 sbctl \
+               grim glmark2 libinput-tools bluez-utils
 ```
 
 `rt-tests` is required for tier 2 (the jitter tier). `perf` and `sysbench` are
-required for tier 5.
+required for tier 5. Two package names are easy to get wrong: the `libinput`
+CLI lives in **`libinput-tools`** (the `libinput` package is only the library,
+and is already installed), and `glmark2` ships several binaries — `gl_render`
+picks `glmark2-wayland`, because the unsuffixed one is the GLX build and cannot
+open a canvas in a Wayland session.
 
 ## Tests — run them before and after any change
 
-401 unit tests, **100 % line coverage**, no network or hardware access. They run
+478 unit tests, **100 % line coverage**, no network or hardware access. They run
 in under a second on any machine, including one that is not the target.
 
 ```bash

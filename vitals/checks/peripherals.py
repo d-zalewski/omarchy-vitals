@@ -8,7 +8,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from ..core import Fail, Info, Ok, Skip, Warn, check
+from ..core import Fail, Info, Ok, Skip, Warn, check, sudo_refused
+
+CPUIDLE = Path("/sys/devices/system/cpu/cpu0/cpuidle")
 
 
 @check(tier=1, name="usb", desc="USB controllers and devices enumerate")
@@ -165,3 +167,75 @@ def battery(ctx):
     cap = ctx.read(str(b / "capacity"), "?")
     status = ctx.read(str(b / "status"), "?")
     return Ok(f"{b.name}: {cap}% ({status})", battery_pct=int(cap) if cap.isdigit() else 0)
+
+
+@check(tier=1, name="libinput_devices", desc="input stack reports capabilities",
+       requires=["libinput"])
+def libinput_devices(ctx):
+    """Ask the input stack, not the text file.
+
+    input_devices reads /proc/bus/input/devices, which lists what the kernel
+    created. This asks libinput - the layer the compositor actually drives the
+    desktop through - what it can do with those nodes, which is where a device
+    that enumerates but exposes nothing usable shows up.
+
+    Capability counts only, never device names: reports get committed.
+    """
+    r = ctx.sudo(["libinput", "list-devices"], timeout=30)
+    if r.returncode != 0:
+        if sudo_refused(r):
+            return Skip("needs root to read /dev/input")
+        return Warn(f"libinput could not list devices: "
+                    f"{(r.stderr or r.stdout).strip()[:70]}")
+    caps = re.findall(r"^Capabilities:\s*(.*)$", r.stdout, re.MULTILINE)
+    if not caps:
+        # input_devices already fails when a machine has no input at all;
+        # saying it twice would just double the noise.
+        return Skip("libinput reports no input devices")
+    kinds: dict = {}
+    for line in caps:
+        for kind in line.split():
+            kinds[kind] = kinds.get(kind, 0) + 1
+    metrics = {"libinput_devices": len(caps),
+               "libinput_keyboards": kinds.get("keyboard", 0),
+               "libinput_pointers": kinds.get("pointer", 0)}
+    if not (metrics["libinput_keyboards"] or metrics["libinput_pointers"]):
+        return Warn(f"{len(caps)} device(s), none with keyboard or pointer "
+                    f"capability - nothing can drive this desktop", **metrics)
+    desc = ", ".join(f"{k} x{v}" for k, v in sorted(kinds.items()))
+    return Ok(f"{len(caps)} device(s): {desc}", **metrics)
+
+
+@check(tier=1, name="cpuidle", desc="CPU enters its deep idle states")
+def cpuidle(ctx):
+    """A machine that never idles benchmarks fine and just runs hot.
+
+    Losing a C-state breaks no functionality and logs nothing. It shows up as
+    fan noise, a warm case and a shorter battery, none of which anybody
+    attributes to the kernel they installed last week.
+    """
+    if not CPUIDLE.is_dir():
+        return Skip("no cpuidle driver (polling idle, or a VM)")
+
+    def index(p):
+        m = re.search(r"(\d+)$", p.name)
+        return int(m.group(1)) if m else -1
+
+    states = []
+    for d in sorted(CPUIDLE.glob("state*"), key=index):
+        usage = ctx.read(str(d / "usage"), "")
+        states.append((ctx.read(str(d / "name"), d.name),
+                       int(usage) if usage.isdigit() else 0))
+    if not states:
+        return Skip("cpuidle present but exposes no states")
+    used = [n for n, u in states if u > 0]
+    deepest, deepest_usage = states[-1]
+    metrics = {"cpuidle_states": len(states), "cpuidle_states_used": len(used)}
+    if not used:
+        return Warn("CPU is not entering any idle state - it will draw full "
+                    "power and run hot at idle", **metrics)
+    if deepest_usage == 0:
+        return Warn(f"deepest state {deepest} never entered "
+                    f"({len(used)}/{len(states)} states used)", **metrics)
+    return Ok(f"{len(used)}/{len(states)} states used, deepest {deepest} "
+              f"entered {deepest_usage} time(s)", **metrics)

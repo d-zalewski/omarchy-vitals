@@ -177,3 +177,35 @@ def net_errors(ctx):
     if n == 0:
         return Ok("no NIC resets/timeouts", net_errors=0)
     return Warn(f"{n} NIC error/reset line(s) - check dmesg", net_errors=n)
+
+
+@check(tier=1, name="bluetooth_scan", desc="bluetooth discovery finds devices",
+       requires=["bluetoothctl"], est_seconds=15)
+def bluetooth_scan(ctx):
+    """The radio, rather than the adapter node.
+
+    `bluetooth` proves an adapter exists and the daemon is up. Neither of those
+    needs the radio to work; scanning does. Counts only - never an address or
+    a device name, which would put the neighbours' phones in a committed file.
+    """
+    hci = sorted(Path("/sys/class/bluetooth").glob("hci*")) \
+        if Path("/sys/class/bluetooth").exists() else []
+    if not hci:
+        return Skip("no bluetooth hardware on this machine")
+    r = ctx.run(["bluetoothctl", "--timeout", "10", "scan", "on"], timeout=45)
+    out = r.stdout + r.stderr
+    if r.returncode == 124:
+        return Warn("bluetoothctl did not return - scan never finished")
+    if "No default controller" in out:
+        return Fail("adapter present but bluetoothd has no controller - "
+                    "the radio is not usable")
+    if r.returncode != 0:
+        # Older bluez has no --timeout; without it the command never returns,
+        # so report the version difference rather than hanging the tier.
+        return Skip(f"bluetoothctl scan unavailable: "
+                    f"{out.strip().splitlines()[-1][:70] if out.strip() else 'no output'}")
+    seen = len(set(re.findall(r"Device ([0-9A-F:]{17})", out, re.IGNORECASE)))
+    if seen == 0:
+        # An empty room is not a fault, and neither is a shielded one.
+        return Info("scan ran, no devices in range", bt_devices_seen=0)
+    return Ok(f"scan found {seen} device(s) in range", bt_devices_seen=seen)

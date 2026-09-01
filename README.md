@@ -17,11 +17,11 @@ Python standard library only. Clone and run.
 
 | Tier | Covers | Time |
 |---|---|---|
-| 0 | kernel faults: taint, oops, MCE, failed units, boot timing; deploy integrity: the running kernel is the installed one, initramfs, microcode, Secure Boot, error-priority log lines | 30s |
-| 1 | hardware: GPU, audio, network, USB, input, storage, thermal, module loading, DKMS, driver binding, TPM and LUKS unlock, namespaces / seccomp / cgroups / KVM, filesystem round-trip, btrfs health, swap, TRIM | 4m |
+| 0 | kernel faults: taint, oops, MCE, failed units, boot timing; deploy integrity: the running kernel is the installed one, initramfs, microcode, Secure Boot, error-priority log lines, CPU mitigations | 30s |
+| 1 | hardware: GPU, audio, network, USB, input, storage, thermal, module loading, DKMS, driver binding, TPM and LUKS unlock, namespaces / seccomp / cgroups / KVM, filesystem round-trip, btrfs health, swap, TRIM, a captured frame, offscreen GL, the screen-share portal, input capabilities, idle states | 5m |
 | 2 | latency: `cyclictest` idle and under load, `hackbench` | 12m |
 | 3 | stress: sustained load, thermal peak, random read and write on real storage | 20m |
-| 4 | suspend/resume: S3 cycles, devices verified afterwards | 3m |
+| 4 | suspend/resume: S3 cycles, devices verified afterwards, probes re-run and timekeeping checked across a cycle | 6m |
 | 5 | throughput: context switch, syscall, contention, memcpy | 4m |
 
 Tiers 3–4 load or suspend the machine; `--skip-disruptive` omits them.
@@ -131,7 +131,7 @@ committed.
 
 ## Tests
 
-401 tests, 100 % coverage, no hardware or network access — they run anywhere in
+478 tests, 100 % coverage, no hardware or network access — they run anywhere in
 under a second.
 
 ```bash

@@ -5,10 +5,12 @@ but broken hardware (FAIL), so most modules are tested for both.
 """
 from __future__ import annotations
 
+import struct
 import unittest
 from pathlib import Path
 from unittest import mock
 
+from fakefs import fake_fs  # noqa: E402
 from helpers import FakeContext, cp  # noqa: E402
 
 from vitals.checks import audio, graphics, network, peripherals  # noqa: E402
@@ -350,6 +352,404 @@ class TestPeripherals(unittest.TestCase):
     def test_webcam_absent_skips(self):
         with mock.patch.object(Path, "glob", return_value=[]):
             self.assertIs(peripherals.webcam(FakeContext()).status, Status.SKIP)
+
+
+class TestScreenshot(unittest.TestCase):
+    """The only check that looks at pixels, so every way that can go wrong."""
+
+    SESSION = {"_compositor": "Hyprland", "WAYLAND_DISPLAY": "wayland-1"}
+
+    def png(self, width=2560, height=1440, size=200_000):
+        head = graphics.PNG_MAGIC + b"\x00" * 8 + struct.pack(">II", width, height)
+        return head + b"\x00" * max(0, size - len(head))
+
+    MONITORS = '[{"name": "HDMI-A-1", "dpmsStatus": true}]'
+    ASLEEP = '[{"name": "HDMI-A-1", "dpmsStatus": false}]'
+
+    def capture(self, ctx, data=None, exists=True):
+        with mock.patch.object(Path, "exists", return_value=exists), \
+             mock.patch.object(Path, "read_bytes",
+                               return_value=data if data is not None else self.png()):
+            return graphics.screenshot(ctx)
+
+    def test_no_session_skips(self):
+        self.assertIs(graphics.screenshot(FakeContext(session={})).status,
+                      Status.SKIP)
+
+    def test_non_wlroots_compositor_skips(self):
+        """grim cannot capture under GNOME, which says nothing about GNOME."""
+        ctx = FakeContext(session={"_compositor": "gnome-shell"})
+        r = graphics.screenshot(ctx)
+        self.assertIs(r.status, Status.SKIP)
+        self.assertIn("gnome-shell", r.message)
+
+    def test_sleeping_output_is_still_tried(self):
+        """dpmsStatus is a preference: a VNC output reports asleep and still
+        delivers frames instantly."""
+        ctx = FakeContext(session=self.SESSION,
+                          commands={"hyprctl": cp(self.ASLEEP), "grim": cp("")})
+        r = self.capture(ctx)
+        self.assertIs(r.status, Status.PASS)
+        self.assertIn("grim -o HDMI-A-1", " ".join(ctx.calls))
+
+    def test_blank_frame_from_a_sleeping_output_skips(self):
+        """A screen the compositor already turned off owes nobody a picture."""
+        ctx = FakeContext(session=self.SESSION,
+                          commands={"hyprctl": cp(self.ASLEEP), "grim": cp("")})
+        r = self.capture(ctx, data=self.png(size=6_121))
+        self.assertIs(r.status, Status.SKIP)
+        self.assertIn("asleep", r.message)
+
+    def test_awake_output_is_captured_by_name(self):
+        ctx = FakeContext(session=self.SESSION,
+                          commands={"hyprctl": cp(self.MONITORS), "grim": cp("")})
+        r = self.capture(ctx)
+        self.assertIs(r.status, Status.PASS)
+        self.assertIn("HDMI-A-1", r.message)
+        self.assertIn("grim -o HDMI-A-1", " ".join(ctx.calls))
+
+    def test_sway_captures_everything(self):
+        """Only Hyprland can be asked which output is awake; sway still works."""
+        ctx = FakeContext(session={"_compositor": "sway"}, commands={"grim": cp("")})
+        r = self.capture(ctx)
+        self.assertIs(r.status, Status.PASS)
+        self.assertNotIn("-o", " ".join(ctx.calls))
+
+    def test_unparseable_monitor_list_captures_everything(self):
+        ctx = FakeContext(session=self.SESSION,
+                          commands={"hyprctl": cp("not json"), "grim": cp("")})
+        self.assertIs(self.capture(ctx).status, Status.PASS)
+
+    def test_blocked_capture_skips_rather_than_fails(self):
+        ctx = FakeContext(session=self.SESSION,
+                          commands={"grim": cp("", 124, "timeout")})
+        r = self.capture(ctx)
+        self.assertIs(r.status, Status.SKIP)
+        self.assertIn("no frame", r.message)
+
+    def test_grim_failure_fails(self):
+        ctx = FakeContext(session=self.SESSION,
+                          commands={"grim": cp("", 1, "compositor does not support"
+                                                      " wlr-screencopy")})
+        r = self.capture(ctx)
+        self.assertIs(r.status, Status.FAIL)
+        self.assertIn("wlr-screencopy", r.message)
+
+    def test_missing_output_file_fails(self):
+        ctx = FakeContext(session=self.SESSION, commands={"grim": cp("")})
+        r = self.capture(ctx, exists=False)
+        self.assertIs(r.status, Status.FAIL)
+        self.assertIn("no output file", r.message)
+
+    def test_not_a_png_fails(self):
+        ctx = FakeContext(session=self.SESSION, commands={"grim": cp("")})
+        r = self.capture(ctx, data=b"not a png at all, but long enough")
+        self.assertIs(r.status, Status.FAIL)
+        self.assertIn("not a PNG", r.message)
+
+    def test_zero_dimensions_fail(self):
+        ctx = FakeContext(session=self.SESSION, commands={"grim": cp("")})
+        r = self.capture(ctx, data=self.png(width=0, height=0))
+        self.assertIs(r.status, Status.FAIL)
+        self.assertIn("no dimensions", r.message)
+
+    def test_blank_frame_from_an_awake_output_warns(self):
+        """A screen that renders nothing compresses to almost nothing.
+
+        6,121 bytes is what a blank 1920x1080 frame measured on real hardware.
+        """
+        ctx = FakeContext(session=self.SESSION,
+                          commands={"hyprctl": cp(self.MONITORS), "grim": cp("")})
+        r = self.capture(ctx, data=self.png(size=6_121))
+        self.assertIs(r.status, Status.WARN)
+        self.assertEqual(r.metrics["screenshot_pixels"], 2560 * 1440)
+
+    def test_real_frame_passes(self):
+        ctx = FakeContext(session=self.SESSION, commands={"grim": cp("")})
+        r = self.capture(ctx)
+        self.assertIs(r.status, Status.PASS)
+        self.assertIn("2560x1440", r.message)
+        self.assertEqual(r.metrics["screenshot_pixels"], 2560 * 1440)
+
+
+class TestScreencastPortal(unittest.TestCase):
+    SESSION = {"_compositor": "Hyprland"}
+
+    def test_no_session_skips(self):
+        self.assertIs(graphics.screencast_portal(FakeContext(session={})).status,
+                      Status.SKIP)
+
+    def test_portal_not_installed_skips(self):
+        ctx = FakeContext(session=self.SESSION, commands={"busctl": cp(
+            "", 1, "Failed to call method: The name org.freedesktop.portal.Desktop"
+                   " was not provided by any .service files")})
+        self.assertIs(graphics.screencast_portal(ctx).status, Status.SKIP)
+
+    def test_portal_error_warns(self):
+        ctx = FakeContext(session=self.SESSION,
+                          commands={"busctl": cp("", 1, "Connection timed out")})
+        r = graphics.screencast_portal(ctx)
+        self.assertIs(r.status, Status.WARN)
+        self.assertEqual(r.metrics["screencast_portal"], 0)
+
+    def test_unparseable_reply_warns(self):
+        ctx = FakeContext(session=self.SESSION,
+                          commands={"busctl": cp("something else entirely")})
+        self.assertIs(graphics.screencast_portal(ctx).status, Status.WARN)
+
+    def test_version_reply_passes(self):
+        ctx = FakeContext(session=self.SESSION, commands={"busctl": cp("v u 5\n")})
+        r = graphics.screencast_portal(ctx)
+        self.assertIs(r.status, Status.PASS)
+        self.assertIn("version 5", r.message)
+        self.assertEqual(r.metrics["screencast_portal"], 1)
+
+
+GLMARK2 = """=====================================
+    glmark2 2023.01
+=====================================
+    OpenGL Information
+    GL_VENDOR:     Intel
+    GL_RENDERER:   Mesa Intel(R) UHD Graphics 770
+    GL_VERSION:    4.6 (Compatibility Profile) Mesa 25.2.0
+=====================================
+[build] use-vbo=false: FPS: 1836 FrameTime: 0.545 ms
+=====================================
+                                  glmark2 Score: 1836
+=====================================
+"""
+
+
+class TestGlRender(unittest.TestCase):
+    DRI = {"/dev/dri": ["renderD128", "card0"]}
+    TOOLS = ["glmark2-wayland"]
+
+    def ctx(self, out, tools=None):
+        return FakeContext(commands={"glmark2": out},
+                           tools=self.TOOLS if tools is None else tools)
+
+    def test_no_render_node_skips(self):
+        with fake_fs({}):
+            self.assertIs(graphics.gl_render(FakeContext()).status, Status.SKIP)
+
+    def test_no_glmark2_installed_skips(self):
+        with fake_fs(self.DRI):
+            self.assertIs(graphics.gl_render(self.ctx(cp(""), tools=[])).status,
+                          Status.SKIP)
+
+    def test_wayland_build_is_preferred_over_the_glx_one(self):
+        """Plain glmark2 is the GLX build and cannot open a Wayland canvas."""
+        with fake_fs(self.DRI):
+            ctx = self.ctx(cp(GLMARK2), tools=["glmark2", "glmark2-wayland"])
+            r = graphics.gl_render(ctx)
+        self.assertIs(r.status, Status.PASS)
+        self.assertTrue(any(c.startswith("glmark2-wayland") for c in ctx.calls))
+
+    def test_software_rendering_fails(self):
+        soft = GLMARK2.replace("Mesa Intel(R) UHD Graphics 770", "llvmpipe (LLVM 20)")
+        with fake_fs(self.DRI):
+            r = graphics.gl_render(self.ctx(cp(soft)))
+        self.assertIs(r.status, Status.FAIL)
+        self.assertIn("software", r.message)
+        self.assertEqual(r.metrics["glmark2_score"], 0)
+
+    def test_no_score_warns(self):
+        """Offscreen GL has packaging quirks; a run that never started is not
+        the same finding as a GPU that renders in software."""
+        with fake_fs(self.DRI):
+            r = graphics.gl_render(self.ctx(
+                cp("", 1, "Error: main: Could not initialize canvas")))
+        self.assertIs(r.status, Status.WARN)
+        self.assertIn("Could not initialize", r.message)
+
+    def test_no_output_at_all_warns(self):
+        with fake_fs(self.DRI):
+            r = graphics.gl_render(self.ctx(cp("")))
+        self.assertIs(r.status, Status.WARN)
+        self.assertIn("no output", r.message)
+
+    def test_zero_score_fails(self):
+        with fake_fs(self.DRI):
+            r = graphics.gl_render(self.ctx(
+                cp(GLMARK2.replace("Score: 1836", "Score: 0"))))
+        self.assertIs(r.status, Status.FAIL)
+        self.assertEqual(r.metrics["glmark2_score"], 0)
+
+    def test_score_passes_and_names_the_renderer(self):
+        with fake_fs(self.DRI):
+            r = graphics.gl_render(self.ctx(cp(GLMARK2)))
+        self.assertIs(r.status, Status.PASS)
+        self.assertEqual(r.metrics["glmark2_score"], 1836)
+        self.assertIn("Mesa Intel", r.message)
+
+
+LIBINPUT = """Device:           AT Translated Set 2 keyboard
+Kernel:           /dev/input/event3
+Capabilities:     keyboard
+Tap-to-click:     n/a
+
+Device:           Logitech Wireless Mouse
+Kernel:           /dev/input/event5
+Capabilities:     pointer
+Tap-to-click:     n/a
+"""
+
+
+class TestLibinputDevices(unittest.TestCase):
+    def test_without_sudo_skips(self):
+        ctx = FakeContext(commands={"libinput": cp(
+            "", 1, "sudo: a password is required")})
+        self.assertIs(peripherals.libinput_devices(ctx).status, Status.SKIP)
+
+    def test_other_failure_warns(self):
+        ctx = FakeContext(commands={"libinput": cp("", 1, "failed to open /dev/input")})
+        r = peripherals.libinput_devices(ctx)
+        self.assertIs(r.status, Status.WARN)
+        self.assertIn("/dev/input", r.message)
+
+    def test_no_devices_skips(self):
+        """input_devices already fails on a machine with no input at all."""
+        ctx = FakeContext(commands={"libinput": cp("")})
+        self.assertIs(peripherals.libinput_devices(ctx).status, Status.SKIP)
+
+    def test_nothing_usable_warns(self):
+        listing = LIBINPUT.replace("keyboard", "switch").replace("pointer", "switch")
+        ctx = FakeContext(commands={"libinput": cp(listing)})
+        r = peripherals.libinput_devices(ctx)
+        self.assertIs(r.status, Status.WARN)
+        self.assertEqual(r.metrics["libinput_devices"], 2)
+        self.assertEqual(r.metrics["libinput_keyboards"], 0)
+
+    def test_keyboard_and_pointer_pass(self):
+        r = peripherals.libinput_devices(FakeContext(commands={"libinput": cp(LIBINPUT)}))
+        self.assertIs(r.status, Status.PASS)
+        self.assertEqual(r.metrics["libinput_devices"], 2)
+        self.assertEqual(r.metrics["libinput_keyboards"], 1)
+        self.assertEqual(r.metrics["libinput_pointers"], 1)
+
+    def test_device_names_are_never_recorded(self):
+        r = peripherals.libinput_devices(FakeContext(commands={"libinput": cp(LIBINPUT)}))
+        self.assertNotIn("Logitech", r.message)
+
+
+class TestCpuidle(unittest.TestCase):
+    BASE = "/sys/devices/system/cpu/cpu0/cpuidle"
+
+    def tree(self, states):
+        return {self.BASE: list(states)}
+
+    def files(self, **kw):
+        return {f"{self.BASE}/{k}": v for k, v in kw.items()}
+
+    def test_no_cpuidle_skips(self):
+        with fake_fs({}):
+            self.assertIs(peripherals.cpuidle(FakeContext()).status, Status.SKIP)
+
+    def test_no_states_skips(self):
+        with fake_fs(self.tree([])):
+            self.assertIs(peripherals.cpuidle(FakeContext()).status, Status.SKIP)
+
+    def test_never_idling_warns(self):
+        ctx = FakeContext(files=self.files(**{"state0/name": "POLL",
+                                              "state0/usage": "0",
+                                              "state1/name": "C6",
+                                              "state1/usage": "0"}))
+        with fake_fs(self.tree(["state0", "state1"])):
+            r = peripherals.cpuidle(ctx)
+        self.assertIs(r.status, Status.WARN)
+        self.assertEqual(r.metrics["cpuidle_states_used"], 0)
+
+    def test_deepest_state_unused_warns(self):
+        ctx = FakeContext(files=self.files(**{"state0/name": "POLL",
+                                              "state0/usage": "500",
+                                              "state1/name": "C6",
+                                              "state1/usage": "0"}))
+        with fake_fs(self.tree(["state0", "state1"])):
+            r = peripherals.cpuidle(ctx)
+        self.assertIs(r.status, Status.WARN)
+        self.assertIn("C6", r.message)
+        self.assertEqual(r.metrics["cpuidle_states_used"], 1)
+
+    def test_deep_states_used_passes(self):
+        ctx = FakeContext(files=self.files(**{"state0/name": "POLL",
+                                              "state0/usage": "500",
+                                              "state1/name": "C6",
+                                              "state1/usage": "9000"}))
+        with fake_fs(self.tree(["state0", "state1"])):
+            r = peripherals.cpuidle(ctx)
+        self.assertIs(r.status, Status.PASS)
+        self.assertEqual(r.metrics["cpuidle_states"], 2)
+        self.assertEqual(r.metrics["cpuidle_states_used"], 2)
+
+    def test_states_are_ordered_numerically_not_lexically(self):
+        """state10 is deeper than state2, and sorts before it as text."""
+        ctx = FakeContext(files=self.files(**{"state2/name": "C1",
+                                              "state2/usage": "5",
+                                              "state10/name": "C10",
+                                              "state10/usage": "7",
+                                              "odd/name": "?", "odd/usage": "1"}))
+        with fake_fs(self.tree(["state2", "state10", "odd"])):
+            r = peripherals.cpuidle(ctx)
+        self.assertIn("deepest C10", r.message)
+
+    def test_unreadable_usage_counts_as_unused(self):
+        ctx = FakeContext(files=self.files(**{"state0/name": "C1",
+                                              "state0/usage": "<error>"}))
+        with fake_fs(self.tree(["state0"])):
+            self.assertIs(peripherals.cpuidle(ctx).status, Status.WARN)
+
+
+class TestBluetoothScan(unittest.TestCase):
+    HCI = {"/sys/class/bluetooth": ["hci0"]}
+
+    def test_no_adapter_skips(self):
+        with fake_fs({}):
+            self.assertIs(network.bluetooth_scan(FakeContext()).status, Status.SKIP)
+
+    def test_timeout_warns(self):
+        with fake_fs(self.HCI):
+            r = network.bluetooth_scan(
+                FakeContext(commands={"bluetoothctl": cp("", 124, "timeout")}))
+        self.assertIs(r.status, Status.WARN)
+
+    def test_no_controller_fails(self):
+        """The adapter is there and the daemon cannot use it - a real break."""
+        with fake_fs(self.HCI):
+            r = network.bluetooth_scan(FakeContext(
+                commands={"bluetoothctl": cp("No default controller available\n", 1)}))
+        self.assertIs(r.status, Status.FAIL)
+
+    def test_old_bluetoothctl_skips(self):
+        with fake_fs(self.HCI):
+            r = network.bluetooth_scan(FakeContext(
+                commands={"bluetoothctl": cp("", 1, "Invalid argument --timeout")}))
+        self.assertIs(r.status, Status.SKIP)
+
+    def test_failure_without_output_skips(self):
+        with fake_fs(self.HCI):
+            r = network.bluetooth_scan(FakeContext(
+                commands={"bluetoothctl": cp("", 1)}))
+        self.assertIs(r.status, Status.SKIP)
+        self.assertIn("no output", r.message)
+
+    def test_empty_room_is_not_a_fault(self):
+        with fake_fs(self.HCI):
+            r = network.bluetooth_scan(FakeContext(
+                commands={"bluetoothctl": cp("Discovery started\n")}))
+        self.assertIs(r.status, Status.INFO)
+        self.assertEqual(r.metrics["bt_devices_seen"], 0)
+
+    def test_devices_are_counted_once_and_never_recorded(self):
+        out = ("Discovery started\n"
+               "[NEW] Device AA:BB:CC:DD:EE:FF Someone's Phone\n"
+               "[CHG] Device AA:BB:CC:DD:EE:FF RSSI: -70\n"
+               "[NEW] Device 11:22:33:44:55:66 Headphones\n")
+        with fake_fs(self.HCI):
+            r = network.bluetooth_scan(FakeContext(commands={"bluetoothctl": cp(out)}))
+        self.assertIs(r.status, Status.PASS)
+        self.assertEqual(r.metrics["bt_devices_seen"], 2)
+        self.assertNotIn("AA:BB", r.message)
+        self.assertNotIn("Phone", r.message)
 
 
 if __name__ == "__main__":

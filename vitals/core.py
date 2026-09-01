@@ -45,6 +45,7 @@ LOWER_IS_BETTER = {
     "resume_errors", "btrfs_scrub_errors", "stress_peak_temp_c",
     "dkms_missing", "pci_unbound", "kernel_reboot_pending", "efi_unsigned",
     "journal_errors", "fio_randwrite_lat_us", "btrfs_io_errors",
+    "cpu_vulnerable", "resume_broken", "clock_resume_skew_ms",
     # tier 5: time-per-operation and latency percentiles
     "ctxsw_usecs_op", "syscall_usecs_op", "sched_messaging_sec",
     "sysbench_threads_p95_ms",
@@ -58,6 +59,7 @@ HIGHER_IS_BETTER = {
     "secure_boot", "luks_tpm_token",
     "user_ns", "overlayfs", "seccomp", "kvm", "io_uring",
     "aes_accelerated", "cgroup_controllers", "discard_reaches_drive",
+    "screencast_portal", "glmark2_score", "cpuidle_states_used",
 }
 # The C probes compile_run() builds. stack_protector deliberately aborts
 # one, which systemd-coredump logs at error priority, so journal_errors
@@ -76,6 +78,7 @@ UNITS = {
     "ctxsw_usecs_op": "us", "syscall_usecs_op": "us",
     "sched_messaging_sec": "s", "sysbench_threads_p95_ms": "ms",
     "memcpy_gb_sec": "GB/s", "loopback_gbit_s": "Gb/s",
+    "clock_resume_skew_ms": "ms",
 }
 
 

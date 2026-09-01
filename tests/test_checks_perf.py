@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from fakefs import fake_fs  # noqa: E402
 from helpers import FakeContext, cp  # noqa: E402
 
 from vitals.checks import kernel_build, latency, stress, throughput  # noqa: E402
@@ -231,6 +232,13 @@ class TestStressAndSuspend(unittest.TestCase):
         self.assertIs(r.status, Status.FAIL)
         self.assertIn("cycle 1", r.message)
 
+    def test_suspend_without_passwordless_sudo_skips(self):
+        """No sudo means the cycle never happened - not that it went wrong."""
+        ctx = FakeContext(files={"/sys/power/state": "mem"},
+                          commands={"rtcwake": cp("", 1,
+                                                  "sudo: a password is required")})
+        self.assertIs(stress.suspend_resume(ctx).status, Status.SKIP)
+
     def test_suspend_snapshot_tolerates_missing_paths(self):
         """After a failed resume a whole sysfs directory can be gone."""
         ctx = FakeContext(files={"/sys/power/state": "freeze mem disk"},
@@ -346,6 +354,112 @@ class TestKernelBuild(unittest.TestCase):
         ctx2 = FakeContext(kconfig="CONFIG_OTHER=y\n")
         self.assertIn("not enabled", kernel_build.modules_signed(ctx2).message)
         self.assertIs(kernel_build.modules_signed(FakeContext()).status, Status.SKIP)
+
+
+class TestResumeFunctional(unittest.TestCase):
+    """Only probes that worked before the cycle may be judged after it."""
+
+    STATES = {"/sys/power/state": "freeze mem disk"}
+
+    def test_unsupported_skips(self):
+        ctx = FakeContext(files={"/sys/power/state": "freeze"})
+        self.assertIs(stress.resume_functional(ctx).status, Status.SKIP)
+
+    def test_nothing_working_beforehand_skips(self):
+        """A machine with no network and no GPU must not fail for either."""
+        with fake_fs({}):
+            r = stress.resume_functional(FakeContext(files=self.STATES))
+        self.assertIs(r.status, Status.SKIP)
+        self.assertIn("nothing to prove", r.message)
+
+    def test_failed_suspend_skips_rather_than_failing_twice(self):
+        ctx = FakeContext(files=self.STATES,
+                          commands={"getent": cp("resolved"),
+                                    "rtcwake": cp("", 1, "cannot open /dev/rtc0")})
+        with fake_fs({}):
+            r = stress.resume_functional(ctx)
+        self.assertIs(r.status, Status.SKIP)
+        self.assertIn("suspend_resume", r.message)
+
+    def test_probe_that_stops_working_fails(self):
+        answers = iter([cp("resolved"), cp("", 1)])     # DNS before, not after
+        ctx = FakeContext(files=self.STATES,
+                          commands={"getent": lambda: next(answers),
+                                    "rtcwake": cp("ok")})
+        # A render node that is listed but will not open is not a working GPU.
+        with fake_fs({"/dev/dri": ["renderD128"]}), mock.patch("time.sleep"), \
+             mock.patch("os.open", side_effect=OSError):
+            r = stress.resume_functional(ctx)
+        self.assertIs(r.status, Status.FAIL)
+        self.assertIn("DNS", r.message)
+        self.assertEqual(r.metrics["resume_broken"], 1)
+
+    def test_everything_returning_passes(self):
+        ctx = FakeContext(files=self.STATES,
+                          commands={"getent": cp("resolved"), "wpctl": cp("Sinks:"),
+                                    "rtcwake": cp("ok")})
+        with fake_fs({"/dev/dri": ["renderD128"]}), mock.patch("time.sleep"), \
+             mock.patch("os.open", return_value=3), mock.patch("os.close"):
+            r = stress.resume_functional(ctx)
+        self.assertIs(r.status, Status.PASS)
+        self.assertEqual(r.metrics["resume_broken"], 0)
+        self.assertIn("GPU render node", r.message)
+
+
+class TestClockAfterResume(unittest.TestCase):
+    """CLOCK_BOOTTIME counts suspended time; CLOCK_MONOTONIC does not."""
+
+    STATES = {"/sys/power/state": "mem"}
+
+    def run_check(self, ctx, boot, mono, wall):
+        with mock.patch.object(stress, "CLOCK_BOOTTIME", 7), \
+             mock.patch("time.clock_gettime", side_effect=boot), \
+             mock.patch("time.monotonic", side_effect=mono), \
+             mock.patch("time.time", side_effect=wall), \
+             mock.patch("time.sleep"):
+            return stress.clock_after_resume(ctx)
+
+    def test_platform_without_boottime_skips(self):
+        with mock.patch.object(stress, "CLOCK_BOOTTIME", None):
+            r = stress.clock_after_resume(FakeContext(files=self.STATES))
+        self.assertIs(r.status, Status.SKIP)
+
+    def test_unsupported_suspend_skips(self):
+        ctx = FakeContext(files={"/sys/power/state": "freeze"})
+        with mock.patch.object(stress, "CLOCK_BOOTTIME", 7):
+            self.assertIs(stress.clock_after_resume(ctx).status, Status.SKIP)
+
+    def test_failed_suspend_skips(self):
+        ctx = FakeContext(files=self.STATES,
+                          commands={"rtcwake": cp("", 1, "cannot open /dev/rtc0")})
+        r = self.run_check(ctx, boot=[100.0], mono=[100.0], wall=[1000.0])
+        self.assertIs(r.status, Status.SKIP)
+        self.assertIn("suspend_resume", r.message)
+
+    def test_unaccounted_suspend_time_fails(self):
+        """20s asleep and BOOTTIME gained nothing: every surviving timer is
+        wrong by 20 seconds."""
+        ctx = FakeContext(files=self.STATES, commands={"rtcwake": cp("ok")})
+        r = self.run_check(ctx, boot=[100.0, 113.0], mono=[100.0, 113.0],
+                           wall=[1000.0, 1013.0])
+        self.assertIs(r.status, Status.FAIL)
+        self.assertIn("not being accounted", r.message)
+
+    def test_wall_clock_disagreement_warns(self):
+        """NTP steps a bad RTC seconds after resume and looks identical."""
+        ctx = FakeContext(files=self.STATES, commands={"rtcwake": cp("ok")})
+        r = self.run_check(ctx, boot=[100.0, 133.0], mono=[100.0, 113.0],
+                           wall=[1000.0, 1038.0])
+        self.assertIs(r.status, Status.WARN)
+        self.assertEqual(r.metrics["clock_resume_skew_ms"], 5000)
+
+    def test_clocks_agreeing_passes(self):
+        ctx = FakeContext(files=self.STATES, commands={"rtcwake": cp("ok")})
+        r = self.run_check(ctx, boot=[100.0, 133.0], mono=[100.0, 113.0],
+                           wall=[1000.0, 1033.0])
+        self.assertIs(r.status, Status.PASS)
+        self.assertEqual(r.metrics["clock_resume_skew_ms"], 0)
+        self.assertIn("slept 20s", r.message)
 
 
 if __name__ == "__main__":

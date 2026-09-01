@@ -9,11 +9,29 @@ from __future__ import annotations
 
 import json
 import re
+import struct
+import tempfile
 from pathlib import Path
 
 from ..core import Fail, Info, Ok, Skip, Warn, check
 
 DRM = Path("/sys/class/drm")
+DRI = Path("/dev/dri")
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+# A PNG of a blank screen is a few KB at any resolution, because uniform rows
+# filter to zeros and deflate to nothing. Measured on an Intel UHD 600 desktop:
+# a blank 1920x1080 frame is 6.1KB, the same output awake is 96KB, and a 4K
+# output awake is 287KB. 16KB sits an order of magnitude from either side.
+BLANK_FRAME_BYTES = 16 * 1024
+# grim speaks wlr-screencopy, which the GNOME and KDE compositors do not
+# implement. On those a failed capture says nothing about the desktop.
+WLROOTS = ("Hyprland", "sway")
+PORTAL_BUS = "org.freedesktop.portal.Desktop"
+PORTAL_PATH = "/org/freedesktop/portal/desktop"
+SOFTWARE_RENDERER = re.compile(r"llvmpipe|softpipe|swrast", re.I)
+# Wayland builds first: the unsuffixed binary is the GLX one, which cannot
+# open a canvas in a Wayland session however healthy the GPU is.
+GLMARK2_BINARIES = ("glmark2-wayland", "glmark2-es2-wayland", "glmark2")
 
 
 def _gpus(ctx) -> list[tuple[str, str]]:
@@ -152,7 +170,7 @@ def gpu_accel(ctx):
         if not m:
             continue
         renderer = m.group(1).strip()
-        if re.search(r"llvmpipe|softpipe|swrast", renderer, re.I):
+        if SOFTWARE_RENDERER.search(renderer):
             return Fail(f"software rendering in use: {renderer[:60]}")
         return Ok(f"hardware renderer: {renderer[:60]}")
     if ctx.have("vulkaninfo"):
@@ -173,3 +191,158 @@ def video_decode(ctx):
         return Warn(f"VA-API not usable: {out.strip().splitlines()[-1][:70] if out.strip() else 'no output'}")
     profiles = len(re.findall(r"VAProfile\w+", out))
     return Ok(f"VA-API working ({profiles} profile entries)", vaapi_profiles=profiles)
+
+
+def _preferred_output(ctx):
+    """(output to capture, whether the compositor calls it awake).
+
+    grim blocks until a frame arrives, and an output that is not rendering
+    never sends one, so asking for the whole layout hangs on any machine with
+    a second monitor asleep. Prefer an awake output and name it explicitly.
+
+    dpmsStatus is a preference, not a veto: the VNC output this was tested
+    against reports asleep and still delivers a frame instantly. It is used
+    again afterwards, to tell a blank frame that is expected from one that is
+    a finding. (None, None) means the compositor could not say, and grim gets
+    the whole layout as before.
+    """
+    if ctx.session_env().get("_compositor") != "Hyprland":
+        return None, None
+    r = ctx.run_in_session(["hyprctl", "-j", "monitors"])
+    if r.returncode != 0:
+        return None, None
+    try:
+        monitors = json.loads(r.stdout)
+    except ValueError:
+        return None, None
+    awake = [m.get("name") for m in monitors if m.get("dpmsStatus")]
+    if awake:
+        return awake[0], True
+    names = [m.get("name") for m in monitors]
+    return (names[0], False) if names else (None, None)
+
+
+@check(tier=1, name="screenshot", desc="compositor produces a real frame",
+       requires=["grim"], est_seconds=5)
+def screenshot(ctx):
+    """Ask for the pixels instead of inferring them.
+
+    Every other check here reasons about the desktop from one layer down - a
+    driver bound, a render node present, a compositor answering. This one takes
+    a frame, which is the only thing that proves all of them at once, and the
+    only one that would notice a session that is alive and displaying nothing.
+    Works over SSH: grim talks to the compositor, not to a login.
+
+    The frame lands in a temporary directory and is deleted with it. Its size
+    and dimensions are the only things that leave this function - the contents
+    of somebody's screen are not report material.
+    """
+    env = ctx.session_env()
+    if not env:
+        return Skip("no Wayland compositor running (headless or TTY only)")
+    comp = env.get("_compositor", "?")
+    if comp not in WLROOTS:
+        return Skip(f"{comp} does not implement wlr-screencopy - grim cannot "
+                    f"capture from it")
+    output, awake = _preferred_output(ctx)
+    with tempfile.TemporaryDirectory() as d:
+        out = Path(d) / "frame.png"
+        grim = ["grim", *(["-o", output] if output else []), str(out)]
+        r = ctx.run_in_session(grim, timeout=20)
+        if r.returncode == 124:
+            # Blocked waiting for a frame that never came. On a working desktop
+            # that means an output stopped rendering, not a broken compositor.
+            return Skip(f"no frame from {output or 'the layout'} within 20s - "
+                        f"the output is asleep or not rendering")
+        if r.returncode != 0 or not out.exists():
+            detail = (r.stderr or r.stdout).strip().splitlines()
+            return Fail(f"grim captured nothing: "
+                        f"{detail[-1][:70] if detail else 'no output file'}")
+        data = out.read_bytes()
+    if len(data) < 24 or not data.startswith(PNG_MAGIC):
+        return Fail(f"grim wrote {len(data)} byte(s) that are not a PNG")
+    width, height = struct.unpack(">II", data[16:24])   # IHDR, after the magic
+    kb = len(data) // 1024
+    if not width or not height:
+        return Fail(f"captured frame has no dimensions ({width}x{height})")
+    if len(data) < BLANK_FRAME_BYTES:
+        if awake is False:
+            # A blank frame from a screen the compositor has already turned off
+            # is the expected answer, not a finding.
+            return Skip(f"{width}x{height} frame is blank and {output} is "
+                        f"asleep - nothing is being rendered to capture")
+        return Warn(f"{width}x{height} frame is only {kb}KB - screen blanked, "
+                    f"or the compositor is rendering nothing",
+                    screenshot_pixels=width * height)
+    return Ok(f"{width}x{height} frame captured{f' from {output}' if output else ''}, "
+              f"{kb}KB compressed", screenshot_pixels=width * height)
+
+
+@check(tier=1, name="screencast_portal", desc="screen sharing portal answers",
+       requires=["busctl"])
+def screencast_portal(ctx):
+    """The path every screen share takes, and the one nothing else covers.
+
+    It breaks quietly - the portal service fails to start, or pipewire is not
+    where it expects - and the first anyone knows is a black window in a call.
+    """
+    if not ctx.session_env():
+        return Skip("no desktop session to ask")
+    r = ctx.run_in_session(
+        ["busctl", "--user", "call", PORTAL_BUS, PORTAL_PATH,
+         "org.freedesktop.DBus.Properties", "Get", "ss",
+         "org.freedesktop.portal.ScreenCast", "version"], timeout=30)
+    out = (r.stdout + r.stderr).strip()
+    last = out.splitlines()[-1][:70] if out else "no output"
+    if r.returncode != 0:
+        # An uninstalled portal is absent hardware, not a broken one.
+        if "not provided by any .service" in out or "ServiceUnknown" in out:
+            return Skip("xdg-desktop-portal not installed")
+        return Warn(f"ScreenCast portal did not answer: {last}",
+                    screencast_portal=0)
+    version = re.search(r"\bu\s+(\d+)", r.stdout)      # reply is: v u <n>
+    if not version:
+        return Warn(f"portal answered but the reply did not parse: {last}",
+                    screencast_portal=0)
+    return Ok(f"ScreenCast portal answers, interface version {version.group(1)}",
+              screencast_portal=1)
+
+
+@check(tier=1, name="gl_render", desc="GPU renders frames offscreen",
+       est_seconds=30)
+def gl_render(ctx):
+    """Submit frames rather than read a renderer string.
+
+    gpu_accel asks the driver what it is. This asks it to draw, offscreen, so
+    it disturbs nothing on screen. A stack that names a hardware renderer and
+    then cannot render is the failure the string cannot see.
+
+    The binary matters: plain `glmark2` is the GLX build and dies with "Could
+    not initialize canvas" on a Wayland session, so the wayland builds are
+    preferred and the X11 one is the fallback.
+    """
+    if not (DRI.exists() and list(DRI.glob("renderD*"))):
+        return Skip("no render node to draw with")
+    binary = next((b for b in GLMARK2_BINARIES if ctx.have(b)), None)
+    if binary is None:
+        return Skip("no glmark2 build installed - cannot submit frames")
+    r = ctx.run_in_session([binary, "--off-screen", "-b", "build:duration=2"],
+                           timeout=120)
+    out = r.stdout + r.stderr
+    renderer = re.search(r"GL_RENDERER:\s*(.+)", out)
+    name = renderer.group(1).strip() if renderer else ""
+    if name and SOFTWARE_RENDERER.search(name):
+        return Fail(f"frames rendered in software: {name[:60]}", glmark2_score=0)
+    score = re.search(r"glmark2 Score:\s*(\d+)", out)
+    if not score:
+        # Offscreen GL has its own packaging quirks, so a run that never got
+        # going is reported as suspicious rather than as a broken GPU - the
+        # renderer string above is what fails outright.
+        detail = out.strip().splitlines()
+        return Warn(f"glmark2 produced no score: "
+                    f"{detail[-1][:70] if detail else 'no output'}")
+    n = int(score.group(1))
+    if n == 0:
+        return Fail("glmark2 scored 0 - no frames were rendered", glmark2_score=0)
+    return Ok(f"offscreen GL rendered, {binary} score {n}"
+              f"{f' on {name[:40]}' if name else ''}", glmark2_score=n)
