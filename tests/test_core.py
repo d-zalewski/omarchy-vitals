@@ -265,6 +265,40 @@ class TestSessionEnv(unittest.TestCase):
                 out = ctx.session_env()
         self.assertEqual(out["HYPRLAND_INSTANCE_SIGNATURE"], "abc123")
 
+    def test_wayland_display_recovered_from_runtime_dir(self):
+        """A compositor creates its socket after exec, so its environ lacks it.
+
+        grim connects to wayland-0 without this and fails on a machine whose
+        socket is wayland-1 - which is every Hyprland session seen so far.
+        """
+        ctx = Context()
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "wayland-1").touch()
+            (Path(d) / "wayland-1.lock").touch()
+            env = f"XDG_RUNTIME_DIR={d}\0"
+            with mock.patch.object(Context, "run", return_value=cp("1\n")), \
+                 mock.patch.object(Path, "read_bytes", return_value=env.encode()):
+                out = ctx.session_env()
+        self.assertEqual(out["WAYLAND_DISPLAY"], "wayland-1")
+
+    def test_wayland_display_in_environ_is_left_alone(self):
+        ctx = Context()
+        with mock.patch.object(Context, "run", return_value=cp("1\n")), \
+             mock.patch.object(Path, "read_bytes", return_value=self.ENV.encode()), \
+             mock.patch.object(Path, "is_dir", return_value=False), \
+             mock.patch.object(Path, "glob",
+                               side_effect=AssertionError("should not look")):
+            self.assertEqual(ctx.session_env()["WAYLAND_DISPLAY"], "wayland-1")
+
+    def test_no_socket_leaves_wayland_display_unset(self):
+        ctx = Context()
+        with tempfile.TemporaryDirectory() as d:
+            env = f"XDG_RUNTIME_DIR={d}\0"
+            with mock.patch.object(Context, "run", return_value=cp("1\n")), \
+                 mock.patch.object(Path, "read_bytes", return_value=env.encode()):
+                out = ctx.session_env()
+        self.assertNotIn("WAYLAND_DISPLAY", out)
+
     def test_unreadable_environ_is_skipped(self):
         ctx = Context()
         with mock.patch.object(Context, "run", return_value=cp("1\n")), \

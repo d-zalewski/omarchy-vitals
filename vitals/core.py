@@ -301,6 +301,21 @@ class Context:
                 if inst:
                     env["HYPRLAND_INSTANCE_SIGNATURE"] = inst[0].name
                     env.setdefault("XDG_RUNTIME_DIR", rt)
+
+        # WAYLAND_DISPLAY needs the same treatment, for the same reason: the
+        # compositor creates its socket after exec, so its own environ never
+        # names it. hyprctl and wpctl do not care - they find the session by
+        # signature and by runtime directory - but anything speaking the
+        # Wayland protocol itself (grim) falls back to wayland-0 and fails on
+        # a machine whose socket is wayland-1. Newest socket wins.
+        if env and "WAYLAND_DISPLAY" not in env:
+            rt = env.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+            socks = sorted((p for p in Path(rt).glob("wayland-*")
+                            if p.suffix != ".lock"),
+                           key=lambda p: p.stat().st_mtime, reverse=True)
+            if socks:
+                env["WAYLAND_DISPLAY"] = socks[0].name
+                env.setdefault("XDG_RUNTIME_DIR", rt)
         self._session_env = env
         return env
 
