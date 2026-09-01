@@ -23,10 +23,10 @@ Runs on the target machine. Python standard library only, no pip dependencies.
 
 ## What it found
 
-Pointed at Omarchy's own BORE kernel, on an Intel Celeron J4125 mini PC. Three
-configurations, with a deliberately kernel-insensitive control benchmark landing
-within **0.03 %** across all of them — so the machine was in an identical state
-and the differences below are the kernel.
+Pointed at Omarchy's own BORE kernel. Three configurations on one machine, with a
+deliberately kernel-insensitive control benchmark landing within **0.03 %** across
+all of them — so the machine stayed in an identical state and the differences below
+are the kernel, not the conditions.
 
 | | Arch stock 7.2.2 | custom, BORE off | custom, BORE on |
 |---|---|---|---|
@@ -87,7 +87,7 @@ reports `REGRESSION` rather than a bare delta, and flags checks that flipped
 
 ## Design notes
 
-**Absent hardware skips; broken hardware fails.** A four-NIC mini PC with no
+**Absent hardware skips; broken hardware fails.** A multi-NIC desktop with no
 radio must not fail wifi checks, and a laptop with no ethernet port must not
 fail wired ones. `SKIP` means "not applicable here"; `FAIL` means "this machine
 has it and it's broken". Getting this wrong produces a suite people learn to
@@ -185,8 +185,9 @@ sudo pacman -S rt-tests stress-ng fio bpftrace usbutils smartmontools \
 
 ## Status
 
-Early but working. Verified on Omarchy running on an Intel Celeron J4125 mini PC
-(i915 graphics, HDA audio, 4× Intel I225-V NICs): 38 pass, 9 skip, 0 fail.
+Early but working: 38 pass, 9 skip, 0 fail on the machine it was developed against.
+Results so far come from a single x86 desktop, so the numbers above should be taken
+as one data point rather than a general claim about BORE.
 
-Contributions welcome, particularly checks for hardware I can't test —
-NVIDIA/AMD graphics, wifi, bluetooth, laptop suspend and battery.
+Contributions welcome, especially checks for hardware not covered yet — NVIDIA and
+AMD graphics, wifi, bluetooth, laptop suspend and battery.
