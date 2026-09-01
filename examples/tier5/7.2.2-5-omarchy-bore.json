@@ -1,0 +1,84 @@
+{
+  "checks": [
+    {
+      "desc": "network stack throughput",
+      "duration_s": 11.01,
+      "message": "19.13 Gbit/s loopback",
+      "name": "iperf_loopback",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "memory bandwidth (kernel memcpy paths)",
+      "duration_s": 0.42,
+      "message": "4.78 GB/sec peak memcpy",
+      "name": "perf_mem",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "multi-process scheduling",
+      "duration_s": 2.05,
+      "message": "1.726s for 20 groups",
+      "name": "perf_sched_messaging",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "context-switch latency",
+      "duration_s": 0.29,
+      "message": "5.23 us/switch, 191,052 ops/sec",
+      "name": "perf_sched_pipe",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "syscall entry/exit cost",
+      "duration_s": 0.32,
+      "message": "0.2908 us/syscall, 3,439,298 ops/sec",
+      "name": "perf_syscall",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "stress-ng aggregate bogo-ops",
+      "duration_s": 60.03,
+      "message": "210,284 bogo-ops/60s (stress-ng 0.22.00; comparable only within this version)",
+      "name": "stress_throughput",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "CPU compute reference point",
+      "duration_s": 15.01,
+      "message": "2,164 events/sec (control - should not vary by kernel)",
+      "name": "sysbench_cpu",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "scheduling under lock contention",
+      "duration_s": 20.01,
+      "message": "23,038 events in 20s, p95 25.74ms",
+      "name": "sysbench_threads",
+      "status": "PASS",
+      "tier": 5
+    }
+  ],
+  "date": "2026-09-01T12:44:05+0100",
+  "kernel": "7.2.2-5-omarchy-bore",
+  "machine": "example-host",
+  "metrics": {
+    "ctxsw_ops_sec": 191052,
+    "ctxsw_usecs_op": 5.234,
+    "loopback_gbit_s": 19.13,
+    "memcpy_gb_sec": 4.78,
+    "sched_messaging_sec": 1.726,
+    "stress_bogo_ops": 210284,
+    "sysbench_cpu_eps": 2164.0,
+    "sysbench_threads_events": 23038,
+    "sysbench_threads_p95_ms": 25.74,
+    "syscall_ops_sec": 3439298,
+    "syscall_usecs_op": 0.2908
+  }
+}

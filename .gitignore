@@ -1,0 +1,12 @@
+# Test reports (machine-specific)
+reports/
+*.json
+!examples/**/*.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# macOS
+.DS_Store

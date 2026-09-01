@@ -1,0 +1,129 @@
+{
+  "checks": [
+    {
+      "desc": "wakeup latency, idle system",
+      "duration_s": 300.08,
+      "message": "idle: avg 5us, max 968us - smooth",
+      "name": "cyclictest_idle",
+      "status": "PASS",
+      "tier": 2
+    },
+    {
+      "desc": "wakeup latency under CPU/IO/VM load",
+      "duration_s": 305.29,
+      "message": "loaded: avg 8us, max 995us - smooth",
+      "name": "cyclictest_loaded",
+      "status": "PASS",
+      "tier": 2
+    },
+    {
+      "desc": "scheduler throughput, many short tasks",
+      "duration_s": 4.89,
+      "message": "hackbench 4.758s (lower = more throughput)",
+      "name": "hackbench",
+      "status": "INFO",
+      "tier": 2
+    },
+    {
+      "desc": "preemption / tick configuration",
+      "duration_s": 0.04,
+      "message": "PREEMPT, PREEMPT_DYNAMIC, HIGH_RES_TIMERS, NO_HZ_FULL, RCU_NOCB",
+      "name": "preempt_config",
+      "status": "PASS",
+      "tier": 2
+    },
+    {
+      "desc": "BORE scheduler active",
+      "duration_s": 0.0,
+      "message": "BORE present but disabled (kernel.sched_bore=0)",
+      "name": "sched_bore",
+      "status": "WARN",
+      "tier": 2
+    },
+    {
+      "desc": "network stack throughput",
+      "duration_s": 11.01,
+      "message": "18.34 Gbit/s loopback",
+      "name": "iperf_loopback",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "memory bandwidth (kernel memcpy paths)",
+      "duration_s": 0.48,
+      "message": "4.77 GB/sec peak memcpy",
+      "name": "perf_mem",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "multi-process scheduling",
+      "duration_s": 2.04,
+      "message": "1.720s for 20 groups",
+      "name": "perf_sched_messaging",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "context-switch latency",
+      "duration_s": 0.42,
+      "message": "7.73 us/switch, 129,303 ops/sec",
+      "name": "perf_sched_pipe",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "syscall entry/exit cost",
+      "duration_s": 0.32,
+      "message": "0.2910 us/syscall, 3,436,863 ops/sec",
+      "name": "perf_syscall",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "stress-ng aggregate bogo-ops",
+      "duration_s": 60.03,
+      "message": "206,465 bogo-ops/60s (stress-ng 0.22.00; comparable only within this version)",
+      "name": "stress_throughput",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "CPU compute reference point",
+      "duration_s": 15.03,
+      "message": "2,164 events/sec (control - should not vary by kernel)",
+      "name": "sysbench_cpu",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "scheduling under lock contention",
+      "duration_s": 20.02,
+      "message": "24,945 events in 20s, p95 24.38ms",
+      "name": "sysbench_threads",
+      "status": "PASS",
+      "tier": 5
+    }
+  ],
+  "date": "2026-09-01T13:55:27+0100",
+  "kernel": "7.2.2-5-omarchy-bore",
+  "machine": "example-host",
+  "metrics": {
+    "ctxsw_ops_sec": 129303,
+    "ctxsw_usecs_op": 7.734,
+    "cyclictest_idle_avg_us": 5,
+    "cyclictest_idle_max_us": 968,
+    "cyclictest_loaded_avg_us": 8,
+    "cyclictest_loaded_max_us": 995,
+    "hackbench_sec": 4.758,
+    "loopback_gbit_s": 18.34,
+    "memcpy_gb_sec": 4.77,
+    "sched_messaging_sec": 1.72,
+    "stress_bogo_ops": 206465,
+    "sysbench_cpu_eps": 2164.3,
+    "sysbench_threads_events": 24945,
+    "sysbench_threads_p95_ms": 24.38,
+    "syscall_ops_sec": 3436863,
+    "syscall_usecs_op": 0.291
+  }
+}

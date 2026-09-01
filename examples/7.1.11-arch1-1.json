@@ -1,0 +1,464 @@
+{
+  "checks": [
+    {
+      "desc": "boot timing breakdown",
+      "duration_s": 0.01,
+      "message": "graphical.target reached after 9.062s in userspace.",
+      "name": "boot_time",
+      "status": "INFO",
+      "tier": 0
+    },
+    {
+      "desc": "failed systemd units",
+      "duration_s": 0.0,
+      "message": "no failed systemd units",
+      "name": "failed_units",
+      "status": "PASS",
+      "tier": 0
+    },
+    {
+      "desc": "missing firmware notices",
+      "duration_s": 0.02,
+      "message": "no missing-firmware notices",
+      "name": "firmware",
+      "status": "PASS",
+      "tier": 0
+    },
+    {
+      "desc": "machine check exceptions / hardware errors",
+      "duration_s": 0.01,
+      "message": "no machine-check exceptions",
+      "name": "mce",
+      "status": "PASS",
+      "tier": 0
+    },
+    {
+      "desc": "loaded module count",
+      "duration_s": 0.01,
+      "message": "162 modules loaded",
+      "name": "modules",
+      "status": "INFO",
+      "tier": 0
+    },
+    {
+      "desc": "oops / BUG / panic / call traces",
+      "duration_s": 0.01,
+      "message": "no oops/BUG/panic/call-trace",
+      "name": "oops",
+      "status": "PASS",
+      "tier": 0
+    },
+    {
+      "desc": "driver probe failures",
+      "duration_s": 0.01,
+      "message": "no driver probe failures",
+      "name": "probe_failures",
+      "status": "PASS",
+      "tier": 0
+    },
+    {
+      "desc": "kernel taint flags",
+      "duration_s": 0.0,
+      "message": "kernel not tainted",
+      "name": "taint",
+      "status": "PASS",
+      "tier": 0
+    },
+    {
+      "desc": "kernel WARN_ON / WARNING",
+      "duration_s": 0.0,
+      "message": "no kernel WARNINGs",
+      "name": "warnings",
+      "status": "PASS",
+      "tier": 0
+    },
+    {
+      "desc": "a default output is selected",
+      "duration_s": 0.06,
+      "message": "default sink usable (Volume: 1.00)",
+      "name": "audio_default_sink",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "actually plays sound to the device",
+      "duration_s": 5.11,
+      "message": "test tone played through default device",
+      "name": "audio_playback",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "playback/capture devices available",
+      "duration_s": 0.02,
+      "message": "1 sink(s), 0 source(s)",
+      "name": "audio_sinks",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "buffer underruns (audible dropouts)",
+      "duration_s": 0.04,
+      "message": "no xruns logged",
+      "name": "audio_xruns",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "battery / AC power reporting",
+      "duration_s": 0.0,
+      "message": "no power supply devices (desktop/mini PC)",
+      "name": "battery",
+      "status": "SKIP",
+      "tier": 1
+    },
+    {
+      "desc": "bluetooth adapter present and up",
+      "duration_s": 0.0,
+      "message": "no bluetooth hardware on this machine",
+      "name": "bluetooth",
+      "status": "SKIP",
+      "tier": 1
+    },
+    {
+      "desc": "eBPF attaches in practice",
+      "duration_s": 3.15,
+      "message": "bpftrace attached and ran - BTF usable",
+      "name": "bpftrace",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "BTF present for eBPF CO-RE tooling",
+      "duration_s": 0.0,
+      "message": "vmlinux BTF 6309 KB, 162 modules",
+      "name": "btf",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "compiler the kernel was built with",
+      "duration_s": 0.0,
+      "message": "(gcc (GCC) 16.2.1",
+      "name": "compiler",
+      "status": "INFO",
+      "tier": 1
+    },
+    {
+      "desc": "Wayland compositor alive",
+      "duration_s": 0.01,
+      "message": "Hyprland responsive (Hyprland 0.56.2 built from branch v0.56.2 at commi)",
+      "name": "compositor",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "compositor sees its monitors",
+      "duration_s": 0.01,
+      "message": "1 monitor(s): VNC-1@60Hz",
+      "name": "compositor_outputs",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "CPU frequency scaling works",
+      "duration_s": 0.0,
+      "message": "governor=schedutil, 2595/2700 MHz",
+      "name": "cpufreq",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "connected display outputs",
+      "duration_s": 0.0,
+      "message": "no connected displays (of 2 connectors) - headless?",
+      "name": "displays",
+      "status": "WARN",
+      "tier": 1
+    },
+    {
+      "desc": "display mode/EDID readable",
+      "duration_s": 0.0,
+      "message": "no connected outputs to read modes from",
+      "name": "drm_modes",
+      "status": "SKIP",
+      "tier": 1
+    },
+    {
+      "desc": "DRM render node for acceleration",
+      "duration_s": 0.0,
+      "message": "1 card node(s), 1 render node(s)",
+      "name": "drm_render_node",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "at least one wired link up",
+      "duration_s": 0.0,
+      "message": "1/4 up: enp1s0@1000Mb",
+      "name": "ethernet_link",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "hardware 3D acceleration in use",
+      "duration_s": 0.0,
+      "message": "no glxinfo/eglinfo/vulkaninfo - install mesa-utils to check accel",
+      "name": "gpu_accel",
+      "status": "SKIP",
+      "tier": 1
+    },
+    {
+      "desc": "GPU driver bound",
+      "duration_s": 0.02,
+      "message": "1 GPU(s): 00:02.0 -> i915",
+      "name": "gpu_driver",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "GPU hangs, resets, DRM errors",
+      "duration_s": 0.01,
+      "message": "no GPU hangs or DRM errors",
+      "name": "gpu_errors",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "keyboard / mouse / touchpad present",
+      "duration_s": 0.0,
+      "message": "10 device(s), keyboard, 1 mouse node(s)",
+      "name": "input_devices",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "module signature enforcement state",
+      "duration_s": 0.05,
+      "message": "module signing enabled (not enforced)",
+      "name": "modules_signed",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "routing and DNS work",
+      "duration_s": 1.1,
+      "message": "gateway reachable, DNS resolves",
+      "name": "net_connectivity",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "network drivers bound",
+      "duration_s": 0.0,
+      "message": "4 NIC(s): eno1(igc), enp1s0(igc), enp2s0(igc), enp4s0(igc)",
+      "name": "net_drivers",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "NIC errors, resets, link flaps",
+      "duration_s": 0.01,
+      "message": "no NIC resets/timeouts",
+      "name": "net_errors",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "audio server running",
+      "duration_s": 0.08,
+      "message": "running: pipewire, wireplumber, pipewire-pulse",
+      "name": "pipewire",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "drive SMART health",
+      "duration_s": 0.0,
+      "message": "missing tool(s): smartctl",
+      "name": "smart",
+      "status": "SKIP",
+      "tier": 1
+    },
+    {
+      "desc": "sound hardware detected",
+      "duration_s": 0.0,
+      "message": "1 card(s): 0 [PCH ]: HDA-Intel - HDA Intel PCH",
+      "name": "sound_card",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "audio driver bound",
+      "duration_s": 0.02,
+      "message": "driver(s): snd_hda_intel",
+      "name": "sound_driver",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "stack canary actually fires",
+      "duration_s": 0.43,
+      "message": "stack protector fires correctly (SIGABRT)",
+      "name": "stack_protector",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "block devices and filesystem mounted",
+      "duration_s": 0.02,
+      "message": "2 disk(s): sda 111.8G disk, zram0 7.6G disk",
+      "name": "storage",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "temperature sensors and current temps",
+      "duration_s": 0.0,
+      "message": "2 zone(s): 46C, 53C",
+      "name": "thermal",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "USB controllers and devices enumerate",
+      "duration_s": 0.0,
+      "message": "2 USB bus(es) (install usbutils for detail)",
+      "name": "usb",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "32-bit vDSO / IA32 emulation",
+      "duration_s": 0.02,
+      "message": "no 32-bit libc/headers installed",
+      "name": "vdso32",
+      "status": "SKIP",
+      "tier": 1
+    },
+    {
+      "desc": "64-bit vDSO clock_gettime",
+      "duration_s": 0.1,
+      "message": "vDSO clock_gettime works (64-bit)",
+      "name": "vdso64",
+      "status": "PASS",
+      "tier": 1
+    },
+    {
+      "desc": "hardware video decode (VA-API)",
+      "duration_s": 0.0,
+      "message": "vainfo not installed (libva-utils) - cannot verify VA-API",
+      "name": "video_decode",
+      "status": "SKIP",
+      "tier": 1
+    },
+    {
+      "desc": "video capture devices",
+      "duration_s": 0.0,
+      "message": "no /dev/video* - no capture hardware",
+      "name": "webcam",
+      "status": "SKIP",
+      "tier": 1
+    },
+    {
+      "desc": "wireless adapter and association",
+      "duration_s": 0.0,
+      "message": "no wireless hardware on this machine",
+      "name": "wifi",
+      "status": "SKIP",
+      "tier": 1
+    },
+    {
+      "desc": "wireless can scan for networks",
+      "duration_s": 0.0,
+      "message": "no wireless hardware",
+      "name": "wifi_scan",
+      "status": "SKIP",
+      "tier": 1
+    },
+    {
+      "desc": "wakeup latency, idle system",
+      "duration_s": 300.11,
+      "message": "idle: avg 5us, max 932us - smooth",
+      "name": "cyclictest_idle",
+      "status": "PASS",
+      "tier": 2
+    },
+    {
+      "desc": "wakeup latency under CPU/IO/VM load",
+      "duration_s": 305.39,
+      "message": "loaded: avg 7us, max 981us - smooth",
+      "name": "cyclictest_loaded",
+      "status": "PASS",
+      "tier": 2
+    },
+    {
+      "desc": "scheduler throughput, many short tasks",
+      "duration_s": 3.74,
+      "message": "hackbench 3.701s (lower = more throughput)",
+      "name": "hackbench",
+      "status": "INFO",
+      "tier": 2
+    },
+    {
+      "desc": "preemption / tick configuration",
+      "duration_s": 0.0,
+      "message": "PREEMPT, PREEMPT_DYNAMIC, HIGH_RES_TIMERS, NO_HZ_FULL, RCU_NOCB",
+      "name": "preempt_config",
+      "status": "PASS",
+      "tier": 2
+    },
+    {
+      "desc": "BORE scheduler active",
+      "duration_s": 0.0,
+      "message": "kernel.sched_bore not present (not a BORE kernel)",
+      "name": "sched_bore",
+      "status": "INFO",
+      "tier": 2
+    }
+  ],
+  "date": "2026-09-01T12:33:17+0100",
+  "kernel": "7.1.11-arch1-1",
+  "machine": "example-host",
+  "metrics": {
+    "audio_sinks": 1,
+    "audio_sources": 0,
+    "audio_xruns": 0,
+    "boot_initrd_ms": 3263,
+    "boot_kernel_ms": 3336,
+    "boot_userspace_ms": 9724,
+    "btf_modules": 162,
+    "btf_vmlinux_bytes": 6460777,
+    "compositor_monitors": 1,
+    "cpu_cur_mhz": 2595,
+    "cpu_max_mhz": 2700,
+    "cyclictest_idle_avg_us": 5,
+    "cyclictest_idle_max_us": 932,
+    "cyclictest_loaded_avg_us": 7,
+    "cyclictest_loaded_max_us": 981,
+    "disks": 2,
+    "displays_connected": 0,
+    "drm_cards": 1,
+    "drm_errors": 0,
+    "drm_render_nodes": 1,
+    "ethernet_total": 4,
+    "ethernet_up": 1,
+    "failed_units": 0,
+    "gpu_count": 1,
+    "gpu_hangs": 0,
+    "hackbench_sec": 3.701,
+    "input_devices": 10,
+    "io_errors": 0,
+    "mce_count": 0,
+    "missing_firmware": 0,
+    "modules_loaded": 162,
+    "net_errors": 0,
+    "net_ifaces": 4,
+    "oops_count": 0,
+    "probe_failures": 0,
+    "sound_cards": 1,
+    "taint": 0,
+    "temp_max_c": 53.0,
+    "warn_count": 0
+  }
+}

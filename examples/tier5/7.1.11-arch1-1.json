@@ -1,0 +1,87 @@
+{
+  "checks": [
+    {
+      "desc": "S3 suspend/resume, hardware returns",
+      "duration_s": 25.32,
+      "message": "2 suspend/resume cycle(s) clean, all devices returned",
+      "name": "suspend_resume",
+      "status": "PASS",
+      "tier": 4
+    },
+    {
+      "desc": "network stack throughput",
+      "duration_s": 11.01,
+      "message": "18.71 Gbit/s loopback",
+      "name": "iperf_loopback",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "memory bandwidth (kernel memcpy paths)",
+      "duration_s": 0.03,
+      "message": "perf 7.2.2-1 vs kernel 7.1.11-arch1-1 - version mismatch, skipping",
+      "name": "perf_mem",
+      "status": "SKIP",
+      "tier": 5
+    },
+    {
+      "desc": "multi-process scheduling",
+      "duration_s": 0.02,
+      "message": "perf 7.2.2-1 vs kernel 7.1.11-arch1-1 - version mismatch, skipping",
+      "name": "perf_sched_messaging",
+      "status": "SKIP",
+      "tier": 5
+    },
+    {
+      "desc": "context-switch latency",
+      "duration_s": 0.02,
+      "message": "perf 7.2.2-1 vs kernel 7.1.11-arch1-1 - version mismatch, skipping",
+      "name": "perf_sched_pipe",
+      "status": "SKIP",
+      "tier": 5
+    },
+    {
+      "desc": "syscall entry/exit cost",
+      "duration_s": 0.02,
+      "message": "perf 7.2.2-1 vs kernel 7.1.11-arch1-1 - version mismatch, skipping",
+      "name": "perf_syscall",
+      "status": "SKIP",
+      "tier": 5
+    },
+    {
+      "desc": "stress-ng aggregate bogo-ops",
+      "duration_s": 60.08,
+      "message": "207,886 bogo-ops/60s (stress-ng 0.22.00; comparable only within this version)",
+      "name": "stress_throughput",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "CPU compute reference point",
+      "duration_s": 15.01,
+      "message": "2,164 events/sec (control - should not vary by kernel)",
+      "name": "sysbench_cpu",
+      "status": "PASS",
+      "tier": 5
+    },
+    {
+      "desc": "scheduling under lock contention",
+      "duration_s": 20.02,
+      "message": "28,848 events in 20s, p95 20.74ms",
+      "name": "sysbench_threads",
+      "status": "PASS",
+      "tier": 5
+    }
+  ],
+  "date": "2026-09-01T13:11:35+0100",
+  "kernel": "7.1.11-arch1-1",
+  "machine": "example-host",
+  "metrics": {
+    "loopback_gbit_s": 18.71,
+    "resume_errors": 0,
+    "stress_bogo_ops": 207886,
+    "sysbench_cpu_eps": 2163.7,
+    "sysbench_threads_events": 28848,
+    "sysbench_threads_p95_ms": 20.74
+  }
+}
