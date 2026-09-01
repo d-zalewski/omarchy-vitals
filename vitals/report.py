@@ -1,6 +1,7 @@
 """Console output, JSON reports, and direction-aware A/B comparison."""
 from __future__ import annotations
 
+import hashlib
 import json
 import platform
 import time
@@ -33,6 +34,26 @@ def summarise(results: list[tuple]) -> dict:
     return counts
 
 
+def machine_token() -> str:
+    """An opaque, stable per-machine token. Never the hostname.
+
+    Reports get committed, so this field cannot be `platform.node()`, and a
+    hash of the hostname would not help: hostnames come from a small dictionary
+    and invert in seconds. /etc/machine-id is 128 random bits, so a digest of
+    it is stable across runs, distinct per machine, and reveals neither the id
+    nor the name. Machines without one (containers, non-systemd) get no field
+    rather than a guess.
+    """
+    for path in ("/etc/machine-id", "/var/lib/dbus/machine-id"):
+        try:
+            raw = Path(path).read_text().strip()
+        except OSError:
+            continue
+        if raw:
+            return hashlib.sha256(b"omarchy-vitals\0" + raw.encode()).hexdigest()[:12]
+    return ""
+
+
 def build_report(results: list[tuple], extra: dict | None = None) -> dict:
     metrics: dict = {}
     checks = []
@@ -44,9 +65,10 @@ def build_report(results: list[tuple], extra: dict | None = None) -> dict:
         })
         for k, v in r.metrics.items():
             metrics[k] = v
+    token = machine_token()
     return {
         "kernel": platform.release(),
-        "machine": platform.node(),
+        **({"machine_id": token} if token else {}),
         "date": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "metrics": metrics,
         "checks": checks,
@@ -95,7 +117,15 @@ def compare(path_a: Path, path_b: Path, tolerance: float = 10.0) -> int:
     print(f"{BOLD}Kernel A/B comparison{RESET}")
     print(f"  A: {CYAN}{a['kernel']}{RESET}   ({a.get('date','?')})")
     print(f"  B: {CYAN}{b['kernel']}{RESET}   ({b.get('date','?')})")
-    print(f"  {DIM}tolerance: +/-{tolerance:.0f}% before calling a change{RESET}\n")
+    print(f"  {DIM}tolerance: +/-{tolerance:.0f}% before calling a change{RESET}")
+    # Two kernels on one machine is the only comparison that means anything.
+    # Reports name the kernel, not the machine, so mixing two boxes is an easy
+    # mistake to make and an invisible one to read past.
+    id_a, id_b = a.get("machine_id"), b.get("machine_id")
+    if id_a and id_b and id_a != id_b:
+        print(f"  {RED}A and B come from different machines - hardware differs, "
+              f"so these numbers are not comparable{RESET}")
+    print()
 
     keys = sorted(set(ma) | set(mb))
     print(f"  {'METRIC':<30} {'A':>12} {'B':>12} {'DELTA':>10}  VERDICT")

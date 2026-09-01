@@ -419,7 +419,7 @@
   ],
   "date": "2026-09-01T12:33:17+0100",
   "kernel": "7.1.11-arch1-1",
-  "machine": "example-host",
+  "machine_id": "example00000",
   "metrics": {
     "audio_sinks": 1,
     "audio_sources": 0,

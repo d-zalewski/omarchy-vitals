@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 from helpers import cp  # noqa: E402,F401
 
@@ -119,11 +120,11 @@ class TestDirection(unittest.TestCase):
 
 
 class TestCompare(unittest.TestCase):
-    def _write(self, d, name, metrics, checks=None):
+    def _write(self, d, name, metrics, checks=None, **extra):
         p = Path(d) / f"{name}.json"
         p.write_text(json.dumps({
             "kernel": name, "date": "2026-01-01T00:00:00+0000",
-            "metrics": metrics, "checks": checks or [],
+            "metrics": metrics, "checks": checks or [], **extra,
         }))
         return p
 
@@ -198,6 +199,71 @@ class TestCompare(unittest.TestCase):
             with redirect_stdout(buf):
                 rp.compare(a, b)
         self.assertIn("us", buf.getvalue())
+
+
+    def test_reports_from_different_machines_are_called_out(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = self._write(d, "A", {"hackbench_sec": 3.0}, machine_id="aaa")
+            b = self._write(d, "B", {"hackbench_sec": 3.0}, machine_id="bbb")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = rp.compare(a, b)
+            out = buf.getvalue()
+        self.assertEqual(rc, 0)                        # a caveat, not a regression
+        self.assertIn("different machines", out)
+
+    def test_same_machine_says_nothing(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = self._write(d, "A", {}, machine_id="aaa")
+            b = self._write(d, "B", {}, machine_id="aaa")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rp.compare(a, b)
+        self.assertNotIn("different machines", buf.getvalue())
+
+
+class TestMachineToken(unittest.TestCase):
+    """The report must identify the machine without naming it."""
+
+    def test_token_derives_from_machine_id(self):
+        with mock.patch.object(Path, "read_text", return_value="7c9a1f...\n"):
+            token = rp.machine_token()
+        self.assertEqual(len(token), 12)
+        self.assertTrue(all(c in "0123456789abcdef" for c in token))
+
+    def test_token_is_stable_and_machine_specific(self):
+        with mock.patch.object(Path, "read_text", return_value="one"):
+            first, again = rp.machine_token(), rp.machine_token()
+        with mock.patch.object(Path, "read_text", return_value="two"):
+            other = rp.machine_token()
+        self.assertEqual(first, again)
+        self.assertNotEqual(first, other)
+
+    def test_falls_through_to_the_dbus_copy(self):
+        reads = [FileNotFoundError(), "dbus-id"]
+        with mock.patch.object(Path, "read_text", side_effect=reads):
+            self.assertTrue(rp.machine_token())
+
+    def test_empty_file_yields_no_token(self):
+        with mock.patch.object(Path, "read_text", return_value="  "):
+            self.assertEqual(rp.machine_token(), "")
+
+    def test_no_machine_id_yields_no_token(self):
+        with mock.patch.object(Path, "read_text", side_effect=OSError):
+            self.assertEqual(rp.machine_token(), "")
+
+    def test_report_never_carries_the_hostname(self):
+        import platform
+        with mock.patch.object(Path, "read_text", return_value="an-id"):
+            report = rp.build_report([result_row("a", Ok("x"))])
+        self.assertNotIn("machine", report)
+        self.assertNotIn(platform.node(), json.dumps(report))
+        self.assertEqual(len(report["machine_id"]), 12)
+
+    def test_field_is_omitted_when_unavailable(self):
+        with mock.patch.object(Path, "read_text", side_effect=OSError):
+            report = rp.build_report([])
+        self.assertNotIn("machine_id", report)
 
 
 if __name__ == "__main__":
