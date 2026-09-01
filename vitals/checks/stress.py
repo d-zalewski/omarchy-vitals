@@ -14,7 +14,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from ..core import Fail, Info, Ok, Skip, Warn, check
+from ..core import Fail, Info, Ok, Skip, Warn, check, disk_dir
 
 
 @check(tier=3, name="stress_stability", desc="no faults under CPU/VM/IO load",
@@ -60,25 +60,6 @@ def stress_stability(ctx):
     return Ok(f"{mins}min load clean, peak {peak:.0f}C{hot}", **metrics)
 
 
-# tmpfs is RAM. An I/O test run there measures memcpy and reports it as disk
-# throughput, which is worse than not testing at all.
-NOT_A_DISK = ("tmpfs", "ramfs", "devtmpfs", "overlay")
-
-
-def _disk_dir(ctx):
-    """A directory backed by real storage, with the filesystem it sits on.
-
-    /var/tmp is the standard on-disk temporary directory - unlike /tmp, which
-    is tmpfs on most systemd installations, this one included.
-    """
-    for path in ("/var/tmp", os.path.expanduser("~")):
-        fstype = ctx.run(["findmnt", "-no", "FSTYPE", "--target", path],
-                         timeout=30).stdout.strip()
-        if fstype and fstype not in NOT_A_DISK:
-            return path, fstype
-    return None, None
-
-
 def _fio(ctx, directory, name, rw):
     """Run one fio job and return its parsed result, or (None, error).
 
@@ -108,7 +89,7 @@ def _fio(ctx, directory, name, rw):
 @check(tier=3, name="disk_io", desc="sustained random read from real storage",
        requires=["fio"], disruptive=True, est_seconds=90)
 def disk_io(ctx):
-    directory, fstype = _disk_dir(ctx)
+    directory, fstype = disk_dir(ctx)
     if directory is None:
         return Skip("no writable directory on real storage")
     job, err = _fio(ctx, directory, "vitals-read", "randread")
@@ -127,7 +108,7 @@ def disk_write(ctx):
     and the device's own write path, which is where a regression in any of
     them shows up.
     """
-    directory, fstype = _disk_dir(ctx)
+    directory, fstype = disk_dir(ctx)
     if directory is None:
         return Skip("no writable directory on real storage")
     job, err = _fio(ctx, directory, "vitals-write", "randwrite")

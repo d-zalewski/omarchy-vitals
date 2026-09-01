@@ -44,7 +44,7 @@ LOWER_IS_BETTER = {
     "gpu_hangs", "audio_xruns", "taint", "oom_events", "stress_new_oops",
     "resume_errors", "btrfs_scrub_errors", "stress_peak_temp_c",
     "dkms_missing", "pci_unbound", "kernel_reboot_pending", "efi_unsigned",
-    "journal_errors", "fio_randwrite_lat_us",
+    "journal_errors", "fio_randwrite_lat_us", "btrfs_io_errors",
     # tier 5: time-per-operation and latency percentiles
     "ctxsw_usecs_op", "syscall_usecs_op", "sched_messaging_sec",
     "sysbench_threads_p95_ms",
@@ -57,7 +57,7 @@ HIGHER_IS_BETTER = {
     "sysbench_cpu_eps", "memcpy_gb_sec", "loopback_gbit_s",
     "secure_boot", "luks_tpm_token",
     "user_ns", "overlayfs", "seccomp", "kvm", "io_uring",
-    "aes_accelerated", "cgroup_controllers",
+    "aes_accelerated", "cgroup_controllers", "discard_reaches_drive",
 }
 # The C probes compile_run() builds. stack_protector deliberately aborts
 # one, which systemd-coredump logs at error priority, so journal_errors
@@ -126,6 +126,25 @@ def compile_run(ctx, src: str, flags: list[str]):
             return True, r.returncode, r.stdout
         except Exception as exc:                       # noqa: BLE001
             return True, None, str(exc)
+
+
+# tmpfs is RAM. An I/O test run there measures memcpy and reports it as disk
+# throughput, which is worse than not testing at all.
+NOT_A_DISK = ("tmpfs", "ramfs", "devtmpfs", "overlay")
+
+
+def disk_dir(ctx):
+    """A directory backed by real storage, with the filesystem it sits on.
+
+    /var/tmp is the standard on-disk temporary directory - unlike /tmp, which
+    is tmpfs on most systemd installations, this one included.
+    """
+    for path in ("/var/tmp", os.path.expanduser("~")):
+        fstype = ctx.run(["findmnt", "-no", "FSTYPE", "--target", path],
+                         timeout=30).stdout.strip()
+        if fstype and fstype not in NOT_A_DISK:
+            return path, fstype
+    return None, None
 
 
 def sudo_refused(result) -> bool:
