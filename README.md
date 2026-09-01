@@ -43,6 +43,9 @@ about 8 % under sustained mutex contention — a database workload, not a deskto
 wakeups, which BORE does not govern. A suite that only ran `cyclictest` would have
 concluded the scheduler does nothing — which is why both measurements are in here.
 
+Full write-up with methodology, the hardware matrix and what was deliberately *not*
+tested: [`report/kernel-comparison.html`](report/kernel-comparison.html).
+
 **Two theories tested and discarded along the way.** The contention gap was first
 blamed on BORE (it is ~8 % of it, not all), then on `RCU_NOCB_CPU_DEFAULT_ALL`, the
 only scheduler-relevant config difference from Arch. Booting with `rcu_nocbs=0` showed

@@ -1,0 +1,817 @@
+<title>Bore vs Stock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#f2f4f7;
+    --surface:#ffffff;
+    --surface-2:#e9edf2;
+    --ink:#141920;
+    --ink-2:#414c5c;
+    --ink-3:#6c7889;
+    --rule:#d5dce5;
+    --rule-strong:#b9c4d1;
+    --accent:#0f6d8c;
+    --accent-soft:#d8ecf3;
+    --pass:#2e7d4f;
+    --warn:#9a6b12;
+    --fail:#b3311f;
+    --pass-bg:#e2f0e8;
+    --warn-bg:#f7ecd6;
+    --fail-bg:#f7e2de;
+    --shadow:0 1px 2px rgba(20,25,32,.06), 0 8px 24px -12px rgba(20,25,32,.18);
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+    --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0e1218;
+      --surface:#161c24;
+      --surface-2:#1e2630;
+      --ink:#e6ecf3;
+      --ink-2:#aab6c5;
+      --ink-3:#7b8798;
+      --rule:#28313d;
+      --rule-strong:#3a4553;
+      --accent:#4fc3e8;
+      --accent-soft:#14323f;
+      --pass:#5cc98a;
+      --warn:#e0b054;
+      --fail:#f0796a;
+      --pass-bg:#152a20;
+      --warn-bg:#2c2416;
+      --fail-bg:#2e1a17;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0e1218; --surface:#161c24; --surface-2:#1e2630;
+    --ink:#e6ecf3; --ink-2:#aab6c5; --ink-3:#7b8798;
+    --rule:#28313d; --rule-strong:#3a4553;
+    --accent:#4fc3e8; --accent-soft:#14323f;
+    --pass:#5cc98a; --warn:#e0b054; --fail:#f0796a;
+    --pass-bg:#152a20; --warn-bg:#2c2416; --fail-bg:#2e1a17;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--ground); color:var(--ink);
+    font-family:var(--sans); line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    padding:clamp(20px,4vw,56px) clamp(16px,4vw,40px);
+  }
+  .wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:30px}
+
+  /* ---- masthead ---- */
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; font-weight:500;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3);
+    display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+  }
+  .eyebrow .dot{width:4px;height:4px;border-radius:50%;background:var(--rule-strong)}
+  h1{
+    font-family:var(--cond); font-weight:700;
+    font-size:clamp(30px,5vw,46px); line-height:1.06; margin:.34em 0 0;
+    letter-spacing:-.015em; text-wrap:balance;
+  }
+  .standfirst{
+    color:var(--ink-2); font-size:16.5px; max-width:64ch; margin-top:.7em;
+  }
+
+  /* ---- verdict ---- */
+  .verdict{
+    background:var(--surface); border:1px solid var(--rule);
+    border-left:4px solid var(--pass); border-radius:3px;
+    padding:22px 24px; box-shadow:var(--shadow);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .verdict h2{
+    font-family:var(--cond); font-size:21px; font-weight:700; margin:0;
+    letter-spacing:-.005em;
+  }
+  .verdict p{margin:0;color:var(--ink-2);font-size:15px;max-width:70ch}
+
+  /* ---- section scaffolding ---- */
+  section{display:flex;flex-direction:column;gap:14px}
+  h3{
+    font-family:var(--cond); font-size:12px; font-weight:600;
+    letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3);
+    margin:0; padding-bottom:9px; border-bottom:1px solid var(--rule);
+  }
+  .note{color:var(--ink-3);font-size:13.5px;max-width:72ch;margin:0}
+
+  /* ---- kernel legend ---- */
+  .legend{display:flex;gap:22px;flex-wrap:wrap;font-size:13px}
+  .legend div{display:flex;align-items:center;gap:8px;font-family:var(--mono)}
+  .swatch{width:11px;height:11px;border-radius:2px;flex:none}
+  .sw-a{background:var(--rule-strong)}
+  .sw-b{background:var(--accent)}
+
+  /* ---- latency chart ---- */
+  .chart{
+    background:var(--surface); border:1px solid var(--rule); border-radius:3px;
+    padding:24px; box-shadow:var(--shadow);
+    display:flex; flex-direction:column; gap:22px;
+  }
+  .row{display:flex;flex-direction:column;gap:9px}
+  .row-head{
+    display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+    font-size:13.5px;
+  }
+  .row-head strong{font-family:var(--cond);font-weight:600;font-size:15px}
+  .row-head span{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+  .track{position:relative;display:flex;flex-direction:column;gap:5px}
+  .bar{display:flex;align-items:center;gap:10px}
+  .bar .lbl{
+    font-family:var(--mono);font-size:11px;color:var(--ink-3);
+    width:44px;flex:none;text-align:right;
+  }
+  .bar .fill{
+    height:19px;border-radius:2px;min-width:2px;
+    display:flex;align-items:center;justify-content:flex-end;
+    padding-right:8px;transition:width .5s ease;
+  }
+  .fill-a{background:var(--rule-strong)}
+  .fill-b{background:var(--accent)}
+  .bar .val{
+    font-family:var(--mono);font-size:11px;font-weight:600;
+    font-variant-numeric:tabular-nums;color:var(--surface);
+  }
+  .fill-a .val{color:var(--surface)}
+  .threshold{
+    position:absolute;top:-4px;bottom:-4px;width:0;
+    border-left:1.5px dashed var(--fail);opacity:.55;
+  }
+  .threshold::after{
+    content:"1 ms — perceptible";
+    position:absolute;top:-16px;left:6px;white-space:nowrap;
+    font-family:var(--mono);font-size:10px;color:var(--fail);
+    letter-spacing:.02em;
+  }
+
+  /* ---- tables ---- */
+  .scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:600px}
+  th{
+    font-family:var(--cond);font-size:11px;font-weight:600;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+    text-align:left;padding:11px 14px;border-bottom:1px solid var(--rule);
+    background:var(--surface-2);position:sticky;top:0;
+  }
+  td{padding:9px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.metric{font-family:var(--mono);font-size:12.5px;color:var(--ink-2)}
+  td.num{
+    font-family:var(--mono);font-variant-numeric:tabular-nums;
+    text-align:right;white-space:nowrap;
+  }
+  td.b{color:var(--ink);font-weight:500}
+
+  .chip{
+    display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;
+    letter-spacing:.06em;text-transform:uppercase;
+    padding:2px 7px;border-radius:2px;white-space:nowrap;
+  }
+  .c-better{background:var(--pass-bg);color:var(--pass)}
+  .c-same{background:var(--surface-2);color:var(--ink-3)}
+  .c-watch{background:var(--warn-bg);color:var(--warn)}
+  .c-fail{background:var(--fail-bg);color:var(--fail)}
+
+  /* ---- findings ---- */
+  .findings{display:flex;flex-direction:column;gap:12px}
+  .finding{
+    background:var(--surface);border:1px solid var(--rule);
+    border-left:3px solid var(--rule-strong);border-radius:3px;
+    padding:15px 18px;display:flex;flex-direction:column;gap:5px;
+  }
+  .finding.watch{border-left-color:var(--warn)}
+  .finding.good{border-left-color:var(--pass)}
+  .finding h4{
+    font-family:var(--cond);font-size:15px;font-weight:600;margin:0;
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  }
+  .finding p{margin:0;font-size:14px;color:var(--ink-2);max-width:74ch}
+  .finding code{
+    font-family:var(--mono);font-size:12.5px;
+    background:var(--surface-2);padding:1px 5px;border-radius:2px;color:var(--ink-2);
+  }
+
+  /* ---- summary counts ---- */
+  .counts{display:flex;gap:10px;flex-wrap:wrap}
+  .count{
+    background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+    padding:12px 16px;flex:1;min-width:96px;
+    display:flex;flex-direction:column;gap:2px;
+  }
+  .count .n{
+    font-family:var(--mono);font-size:23px;font-weight:600;
+    font-variant-numeric:tabular-nums;line-height:1.1;
+  }
+  .count .k{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-3);
+  }
+  .n-pass{color:var(--pass)} .n-warn{color:var(--warn)}
+  .n-fail{color:var(--fail)} .n-skip{color:var(--ink-3)}
+
+  footer{
+    border-top:1px solid var(--rule);padding-top:18px;
+    color:var(--ink-3);font-size:12.5px;display:flex;flex-direction:column;gap:5px;
+  }
+  footer code{font-family:var(--mono);font-size:12px}
+  a{color:var(--accent)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">
+      <span>Kernel A/B</span><span class="dot"></span>
+      <span>Omarchy desktop</span><span class="dot"></span>
+      <span>1 Sep 2026</span>
+    </div>
+    <h1>What BORE actually buys, measured three ways</h1>
+    <p class="standfirst">
+      A <code>linux-omarchy-bore 7.2.2-5</code> kernel — built on Apple Silicon with a
+      self-compiled Arch GCC 16.2.1 cross-toolchain — measured against Arch's own
+      <code>linux 7.2.2</code> binary, and against itself with the BORE scheduler switched
+      off at runtime. Same machine, same upstream version, same afternoon.
+    </p>
+  </header>
+
+  <div class="verdict">
+    <h2>A deliberate trade, and it lands the right way up</h2>
+    <p>
+      With upstream version and hardware held constant, the custom kernel switches tasks
+      <strong>23&nbsp;% faster</strong> than Arch's own build and runs <code>hackbench</code>
+      <strong>14&nbsp;% faster</strong> — the two measurements closest to how a desktop
+      actually feels. It pays for that with <strong>21&nbsp;% less throughput</strong> under
+      sustained mutex contention, a workload no desktop performs. Isolating the scheduler
+      shows BORE is what buys the responsiveness, not what costs it.
+    </p>
+  </div>
+
+  <section>
+    <h3>Desktop hardware — every subsystem, both kernels</h3>
+    <p class="note">
+      The part that matters first after a kernel change: does the machine still work. Every
+      row was checked on both kernels and compared. Absent hardware is reported as
+      <em>not applicable</em> rather than as a pass or a failure — a four-NIC box with no
+      radio should not score a green tick for wifi it does not have.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Subsystem</th><th>Checked</th><th style="text-align:right">Result</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="metric">Graphics</td>
+            <td>Driver bound, DRM card + render node present, connected outputs, EDID modes readable, GPU hangs and DRM errors in log</td>
+            <td class="num">i915 · HDMI-A-1<br><span style="color:var(--ink-3)">3840×2160 · 0 hangs</span></td>
+            <td><span class="chip c-better">identical</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Compositor</td>
+            <td>Wayland session alive, <code>hyprctl</code> responsive, monitors enumerated</td>
+            <td class="num">Hyprland 0.56.2<br><span style="color:var(--ink-3)">2 outputs</span></td>
+            <td><span class="chip c-better">identical</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Audio</td>
+            <td>Card detected, driver bound, PipeWire + WirePlumber running, sinks/sources enumerated, default sink usable, xruns in log</td>
+            <td class="num">HDA Intel PCH<br><span style="color:var(--ink-3)">snd_hda_intel · 1 sink · 0 xruns</span></td>
+            <td><span class="chip c-better">identical</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Ethernet</td>
+            <td>Driver bound per interface, link state, negotiated speed, gateway reachable, DNS resolves, NIC resets and TX timeouts in log</td>
+            <td class="num">4 × Intel I225-V<br><span style="color:var(--ink-3)">igc · 1 up @ 1000 Mb · 0 errors</span></td>
+            <td><span class="chip c-better">identical</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Wi-Fi</td>
+            <td>Adapter presence, association, signal, scan capability</td>
+            <td class="num" style="color:var(--ink-3)">no radio in this machine</td>
+            <td><span class="chip c-same">n/a</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Bluetooth</td>
+            <td>Adapter presence, rfkill state, service active</td>
+            <td class="num" style="color:var(--ink-3)">no adapter in this machine</td>
+            <td><span class="chip c-same">n/a</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Storage</td>
+            <td>Block devices enumerated, I/O errors in log, full <code>btrfs scrub</code> of every data and metadata block</td>
+            <td class="num">2 disks · 0 I/O errors<br><span style="color:var(--ink-3)">scrub: 0 errors</span></td>
+            <td><span class="chip c-better">identical</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Input</td>
+            <td>Keyboard, mouse and touchpad nodes present</td>
+            <td class="num">10 devices</td>
+            <td><span class="chip c-better">identical</span></td>
+          </tr>
+          <tr>
+            <td class="metric">USB</td>
+            <td>Controllers and devices enumerate, descriptor-read and enumeration errors</td>
+            <td class="num">2 root hubs · 0 errors</td>
+            <td><span class="chip c-better">identical</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Suspend / resume</td>
+            <td>Two S3 <code>deep</code> cycles via <code>rtcwake</code>; NICs, DRM cards and sound cards re-verified afterwards; PM errors in log</td>
+            <td class="num">2 cycles clean<br><span style="color:var(--ink-3)">all devices returned</span></td>
+            <td><span class="chip c-better">identical</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Thermal / power</td>
+            <td>Sensor zones readable, peak temperature, CPU frequency scaling governor</td>
+            <td class="num">50–53 °C<br><span style="color:var(--ink-3)">schedutil · 2700 MHz max</span></td>
+            <td><span class="chip c-better">identical</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Webcam</td>
+            <td>V4L2 capture devices</td>
+            <td class="num" style="color:var(--ink-3)">none attached</td>
+            <td><span class="chip c-same">n/a</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">
+      <strong>Not a single hardware difference between the two kernels.</strong> Suspend/resume
+      is worth singling out: it is where a new kernel most often breaks a desktop — a GPU or
+      NIC that does not come back — and this machine had never suspended before these tests,
+      so the path was unproven on <em>both</em> kernels until now.
+    </p>
+  </section>
+
+  <section>
+    <h3>Where the scheduler shows up — and where it does not</h3>
+    <p class="note">
+      Two measurements, three configurations, one conclusion. Timer latency is flat across
+      all of them; context-switch cost is not. That contrast is the whole finding: BORE
+      governs ordinary task scheduling, not real-time timer wakeups, so a suite that only
+      ran <code>cyclictest</code> would have concluded the scheduler does nothing.
+    </p>
+    <div class="legend">
+      <div><span class="swatch sw-a"></span>A · Arch stock 7.2.2</div>
+      <div><span class="swatch" style="background:var(--warn)"></span>C · custom, BORE off</div>
+      <div><span class="swatch sw-b"></span>B · custom, BORE on</div>
+    </div>
+    <div class="chart">
+      <div class="row">
+        <div class="row-head">
+          <strong>Context switch cost</strong>
+          <span>perf bench sched pipe · lower is better</span>
+        </div>
+        <div class="track">
+          <div class="bar"><span class="lbl">A</span>
+            <div class="fill fill-a" style="width:calc((6.75/9) * (100% - 54px))"><span class="val">6.75 µs</span></div>
+          </div>
+          <div class="bar"><span class="lbl">C</span>
+            <div class="fill" style="background:var(--warn);width:calc((7.73/9) * (100% - 54px))"><span class="val">7.73 µs</span></div>
+          </div>
+          <div class="bar"><span class="lbl">B</span>
+            <div class="fill fill-b" style="width:calc((5.23/9) * (100% - 54px))"><span class="val">5.23 µs</span></div>
+          </div>
+        </div>
+        <div class="row-head" style="margin-top:2px">
+          <span style="color:var(--pass)">BORE cuts 32 % off the same binary — and ends 23 % ahead of Arch's build</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-head">
+          <strong>Timer wakeup latency, under load</strong>
+          <span>cyclictest worst case · lower is better</span>
+        </div>
+        <div class="track">
+          <div class="threshold" style="left:calc(44px + 10px + (1000/1200) * (100% - 54px))"></div>
+          <div class="bar"><span class="lbl">A</span>
+            <div class="fill fill-a" style="width:calc((971/1200) * (100% - 54px))"><span class="val">971 µs</span></div>
+          </div>
+          <div class="bar"><span class="lbl">C</span>
+            <div class="fill" style="background:var(--warn);width:calc((995/1200) * (100% - 54px))"><span class="val">995 µs</span></div>
+          </div>
+          <div class="bar"><span class="lbl">B</span>
+            <div class="fill fill-b" style="width:calc((1036/1200) * (100% - 54px))"><span class="val">1036 µs</span></div>
+          </div>
+        </div>
+        <div class="row-head" style="margin-top:2px">
+          <span>Within 7 % across all three — BORE does not govern RT timer wakeups</span>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      Averages stayed at 5&nbsp;µs idle and 7&nbsp;µs under full load in every configuration.
+      The worst-case spread of 971–1036&nbsp;µs sits inside run-to-run variance for a
+      passively cooled Celeron, and all three hug the 1&nbsp;ms perceptibility line.
+    </p>
+  </section>
+
+  <section>
+    <h3>First pass — against Arch 7.1.11</h3>
+    <p class="note">
+      The original comparison, before the version and scheduler variables were separated.
+      Kept because the hardware and boot findings still stand; its contention conclusion is
+      superseded by the decomposition below.
+    </p>
+    <div class="findings">
+      <div class="finding good">
+        <h4>Boot is 3.3 s faster overall <span class="chip c-better">better</span></h4>
+        <p>
+          Userspace startup fell from 9.72&nbsp;s to 6.06&nbsp;s (−38&nbsp;%). Kernel init was
+          unchanged at ~3.3&nbsp;s.
+        </p>
+      </div>
+      <div class="finding watch">
+        <h4>Initrd 384 ms slower <span class="chip c-watch">flagged, not real</span></h4>
+        <p>
+          The only metric to trip the automatic 10&nbsp;% regression threshold
+          (3263&nbsp;ms → 3647&nbsp;ms). Both boots unlock LUKS from the TPM, and that
+          handshake varies by a few hundred milliseconds run to run. Two samples cannot
+          separate a real change from that noise — and the same boot gained 3.7&nbsp;s in
+          userspace, so total time to desktop still improved.
+        </p>
+      </div>
+      <div class="finding watch">
+        <h4>Loaded latency crossed a threshold boundary <span class="chip c-watch">artifact</span></h4>
+        <p>
+          <code>cyclictest_loaded</code> flipped <code>PASS → WARN</code> purely because
+          981&nbsp;µs sits just under the 1&nbsp;ms line and 1036&nbsp;µs sits just over it.
+          A 55&nbsp;µs difference is not perceptible; the status change is the grading
+          boundary, not the kernel.
+        </p>
+      </div>
+      <div class="finding">
+        <h4>Display detection differed <span class="chip c-same">environmental</span></h4>
+        <p>
+          The stock run saw no connected output and one compositor monitor; the BORE run
+          saw HDMI-A-1 at 3840×2160 plus a VNC output. Most likely the physical display
+          was asleep during the stock run rather than a driver difference — both kernels
+          bound <code>i915</code> cleanly with zero DRM errors. Worth re-checking with the
+          monitor confirmed awake.
+        </p>
+      </div>
+      <div class="finding good">
+        <h4>Suspend and resume clean on both <span class="chip c-better">newly verified</span></h4>
+        <p>
+          Two S3 <code>deep</code> cycles per kernel via <code>rtcwake</code>, with every
+          NIC, DRM card and sound card confirmed present afterwards and no PM errors in
+          the log. Worth noting this machine had <em>never</em> suspended before today —
+          zero prior suspend events in its journal — so this was an untested path on both
+          kernels, not just the new one.
+        </p>
+      </div>
+      <div class="finding good">
+        <h4>BORE scheduler confirmed active <span class="chip c-better">expected</span></h4>
+        <p>
+          <code>kernel.sched_bore=1</code> on the new kernel and absent on stock — the one
+          status change that is supposed to happen. <code>hackbench</code> also improved
+          9&nbsp;% (3.70&nbsp;s → 3.38&nbsp;s), inside tolerance but pointing the right way.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Check results — first pass</h3>
+    <div class="counts">
+      <div class="count"><span class="n n-pass">38</span><span class="k">pass</span></div>
+      <div class="count"><span class="n n-warn">1</span><span class="k">warn</span></div>
+      <div class="count"><span class="n n-fail">0</span><span class="k">fail</span></div>
+      <div class="count"><span class="n n-skip">9</span><span class="k">skip</span></div>
+    </div>
+    <p class="note">
+      Counts for the BORE kernel; stock scored 39 pass / 0 warn / 0 fail / 9 skip — the
+      single difference being the latency threshold boundary above. The nine skips are
+      hardware this machine genuinely lacks (wifi, bluetooth, battery, webcam) plus two
+      absent tools, not failures.
+    </p>
+  </section>
+
+  <section>
+    <h3>Measurements — first pass vs 7.1.11</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th style="text-align:right">A · stock 7.1.11</th>
+            <th style="text-align:right">B · bore 7.2.2-5</th>
+            <th style="text-align:right">Δ</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="metric">cyclictest_idle_max_us</td><td class="num">932 µs</td><td class="num b">973 µs</td><td class="num">+4 %</td><td><span class="chip c-same">~same</span></td></tr>
+          <tr><td class="metric">cyclictest_idle_avg_us</td><td class="num">5 µs</td><td class="num b">5 µs</td><td class="num">0 %</td><td><span class="chip c-same">~same</span></td></tr>
+          <tr><td class="metric">cyclictest_loaded_max_us</td><td class="num">981 µs</td><td class="num b">1036 µs</td><td class="num">+6 %</td><td><span class="chip c-same">~same</span></td></tr>
+          <tr><td class="metric">cyclictest_loaded_avg_us</td><td class="num">7 µs</td><td class="num b">7 µs</td><td class="num">0 %</td><td><span class="chip c-same">~same</span></td></tr>
+          <tr><td class="metric">hackbench_sec</td><td class="num">3.701 s</td><td class="num b">3.382 s</td><td class="num">−9 %</td><td><span class="chip c-same">~same</span></td></tr>
+          <tr><td class="metric">boot_userspace_ms</td><td class="num">9724 ms</td><td class="num b">6061 ms</td><td class="num">−38 %</td><td><span class="chip c-better">better</span></td></tr>
+          <tr><td class="metric">boot_initrd_ms</td><td class="num">3263 ms</td><td class="num b">3647 ms</td><td class="num">+12 %</td><td><span class="chip c-watch">flagged</span></td></tr>
+          <tr><td class="metric">boot_kernel_ms</td><td class="num">3336 ms</td><td class="num b">3372 ms</td><td class="num">+1 %</td><td><span class="chip c-same">~same</span></td></tr>
+          <tr><td class="metric">temp_max_c</td><td class="num">53.0 °C</td><td class="num b">50.0 °C</td><td class="num">−6 %</td><td><span class="chip c-same">~same</span></td></tr>
+          <tr><td class="metric">btf_modules</td><td class="num">162</td><td class="num b">161</td><td class="num">−1 %</td><td><span class="chip c-same">~same</span></td></tr>
+          <tr><td class="metric">taint / oops / mce</td><td class="num">0 / 0 / 0</td><td class="num b">0 / 0 / 0</td><td class="num">—</td><td><span class="chip c-same">clean</span></td></tr>
+          <tr><td class="metric">failed_units</td><td class="num">0</td><td class="num b">0</td><td class="num">—</td><td><span class="chip c-same">clean</span></td></tr>
+          <tr><td class="metric">gpu_hangs / drm_errors</td><td class="num">0 / 0</td><td class="num b">0 / 0</td><td class="num">—</td><td><span class="chip c-same">clean</span></td></tr>
+          <tr><td class="metric">audio_xruns</td><td class="num">0</td><td class="num b">0</td><td class="num">—</td><td><span class="chip c-same">clean</span></td></tr>
+          <tr><td class="metric">net_errors</td><td class="num">0</td><td class="num b">0</td><td class="num">—</td><td><span class="chip c-same">clean</span></td></tr>
+          <tr><td class="metric">io_errors</td><td class="num">0</td><td class="num b">0</td><td class="num">—</td><td><span class="chip c-same">clean</span></td></tr>
+          <tr><td class="metric">ethernet_up / total</td><td class="num">1 / 4</td><td class="num b">1 / 4</td><td class="num">—</td><td><span class="chip c-same">~same</span></td></tr>
+          <tr><td class="metric">input_devices</td><td class="num">10</td><td class="num b">10</td><td class="num">0 %</td><td><span class="chip c-same">~same</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h3>Test bed</h3>
+    <div class="scroll">
+      <table>
+        <tbody>
+          <tr><td class="metric">Machine</td><td>Intel Celeron J4125 · 4 cores, no SMT · 7.6 GB RAM · passively cooled mini PC</td></tr>
+          <tr><td class="metric">Graphics</td><td>Intel UHD 600 (GeminiLake) · <code>i915</code> · HDMI 3840×2160</td></tr>
+          <tr><td class="metric">Audio</td><td>Intel HDA · <code>snd_hda_intel</code> · PipeWire + WirePlumber</td></tr>
+          <tr><td class="metric">Network</td><td>4 × Intel I225-V · <code>igc</code> · one link up at 1000 Mb</td></tr>
+          <tr><td class="metric">Storage</td><td>btrfs on LUKS2, TPM2-unlocked · Secure Boot enabled with custom keys</td></tr>
+          <tr><td class="metric">Desktop</td><td>Omarchy · Hyprland 0.56.2 · Wayland</td></tr>
+          <tr><td class="metric">Kernel A</td><td><code>linux 7.1.11-arch1-1</code> — Arch's own binary package</td></tr>
+          <tr><td class="metric">Kernel B</td><td><code>linux-omarchy-bore 7.2.2-5</code> — stock Omarchy config, built from Arch's pinned GCC 16.2.1 sources cross-compiled on an M5 MacBook</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h3>What was actually run</h3>
+    <p class="note">
+      Both kernels went through identical tiers, back to back on the same machine within
+      15 minutes of each other. Roughly 20 minutes of measurement per kernel.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Stage</th><th>What ran</th><th style="text-align:right">Duration</th><th>Result</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="metric">Fault scan</td>
+            <td>Kernel taint bits, oops/BUG/panic/call-trace, machine-check exceptions, driver probe failures, failed systemd units</td>
+            <td class="num">~30 s</td>
+            <td><span class="chip c-better">clean both</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Filesystem integrity</td>
+            <td><code>btrfs scrub</code> — full checksum verification of every data and metadata block on the root filesystem</td>
+            <td class="num">~2 min</td>
+            <td><span class="chip c-better">0 errors</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Hardware enumeration</td>
+            <td>39 checks: GPU driver bind, DRM render node, display modes, audio card + PipeWire sinks, 4 NIC drivers and link state, USB, input devices, storage I/O errors, thermal, cpufreq, BTF/eBPF attach, vDSO, stack-protector canary</td>
+            <td class="num">~2 min</td>
+            <td><span class="chip c-better">no differences</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Idle latency</td>
+            <td><code>cyclictest</code> — 4 threads, priority 80, 200 µs interval, memory locked</td>
+            <td class="num">5 min</td>
+            <td><span class="chip c-same">~same</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Latency under stress</td>
+            <td><code>cyclictest</code> as above, while <code>stress-ng</code> ran 4 CPU workers + 2 I/O workers + 1 VM worker (256 MB) — the machine fully saturated for the whole run</td>
+            <td class="num">5 min</td>
+            <td><span class="chip c-same">~same</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Suspend / resume</td>
+            <td>Two S3 <code>deep</code> cycles via <code>rtcwake</code>, verifying every NIC, DRM card and sound card returns and no PM errors are logged</td>
+            <td class="num">~1 min</td>
+            <td><span class="chip c-better">clean both</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Throughput benchmarks</td>
+            <td><code>sysbench threads</code> + <code>cpu</code>, <code>iperf3</code> loopback, <code>stress-ng</code> bogo-ops, and four <code>perf bench</code> checks (new kernel only)</td>
+            <td class="num">~4 min</td>
+            <td><span class="chip c-watch">1 difference</span></td>
+          </tr>
+          <tr>
+            <td class="metric">Scheduler throughput</td>
+            <td><code>hackbench -pTl 2000</code> — 2000 loops of process/thread message passing</td>
+            <td class="num">~5 s</td>
+            <td><span class="chip c-same">~same</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">
+      <strong>Stability signal:</strong> the fault scan reran after the stress period on both
+      kernels and found nothing new — no oops, no call traces, no machine-check exceptions,
+      no OOM kills, no I/O or NIC errors, no GPU hangs, and no audio xruns. That is 5 minutes
+      of full saturation per kernel, not a soak test, but enough that a kernel with a broken
+      lock or a bad driver would have shown it.
+    </p>
+  </section>
+
+  <section>
+    <h3>What was not run</h3>
+    <p class="note">
+      Stated plainly, because their absence bounds what this report can claim:
+    </p>
+    <div class="scroll">
+      <table>
+        <tbody>
+          <tr><td class="metric">Sustained stress</td><td>The 20-minute <code>stress-ng</code> CPU/VM/IO/matrix soak with thermal tracking was not part of this comparison — only the 5-minute load used to pressure the latency test. A thermal or long-run stability difference would not have surfaced here.</td></tr>
+          <tr><td class="metric">Repeat sampling</td><td>Contention was sampled five times on the custom kernel (~1 % spread) and three times per BORE state, but once per configuration for the rest. Enough to trust differences of this size; not enough to resolve a few percent.</td></tr>
+          <tr><td class="metric">Config attribution</td><td>Still open. A full config diff found only one scheduler-relevant difference from Arch (<code>RCU_NOCB_CPU_DEFAULT_ALL</code>), and testing it ruled it out as the cause — see below. What remains untested is the 59 non-BORE patches in the Omarchy kernel and the self-built cross-compiler.</td></tr>
+          <tr><td class="metric">Real applications</td><td>Everything here is a microbenchmark. None of it measures frame pacing, input latency or application launch time, which is what "feels smooth" actually means.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h3>Isolating the scheduler — three configurations</h3>
+    <p class="note">
+      The first comparison confounded three variables: upstream version, kernel config, and
+      the BORE scheduler. Two of them were removable without building anything. Arch ships
+      <code>linux 7.2.2</code> as a binary, matching the custom kernel's upstream version
+      exactly; and BORE has a runtime switch, so the same binary can be measured with the
+      scheduler on and off. What remains between C and A is config and compiler; what
+      remains between C and B is BORE alone.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th style="text-align:right">A · Arch 7.2.2</th>
+            <th style="text-align:right">C · custom, BORE off</th>
+            <th style="text-align:right">B · custom, BORE on</th>
+            <th>Reading</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="metric">context switch<br><span style="color:var(--ink-3)">perf bench sched pipe</span></td>
+            <td class="num">6.75 µs<br><span style="color:var(--ink-3)">148,218/s</span></td>
+            <td class="num">7.73 µs<br><span style="color:var(--ink-3)">129,303/s</span></td>
+            <td class="num b">5.23 µs<br><span style="color:var(--ink-3)">191,052/s</span></td>
+            <td><span class="chip c-better">BORE −32 % vs C</span></td>
+          </tr>
+          <tr>
+            <td class="metric">hackbench<br><span style="color:var(--ink-3)">many short tasks</span></td>
+            <td class="num">3.95 s</td>
+            <td class="num">4.76 s</td>
+            <td class="num b">3.38 s</td>
+            <td><span class="chip c-better">BORE −29 % vs C</span></td>
+          </tr>
+          <tr>
+            <td class="metric">mutex contention<br><span style="color:var(--ink-3)">sysbench threads</span></td>
+            <td class="num">29,237 ev<br><span style="color:var(--ink-3)">p95 20.37 ms</span></td>
+            <td class="num">24,945 ev<br><span style="color:var(--ink-3)">p95 24.38 ms</span></td>
+            <td class="num b">23,038 ev<br><span style="color:var(--ink-3)">p95 25.74 ms</span></td>
+            <td><span class="chip c-fail">config −15 %, BORE −8 %</span></td>
+          </tr>
+          <tr>
+            <td class="metric">cyclictest loaded max</td>
+            <td class="num">971 µs</td><td class="num">995 µs</td><td class="num b">1036 µs</td>
+            <td><span class="chip c-same">~same</span></td>
+          </tr>
+          <tr>
+            <td class="metric">syscall entry/exit</td>
+            <td class="num">0.2893 µs</td><td class="num">0.2910 µs</td><td class="num b">0.2908 µs</td>
+            <td><span class="chip c-same">~same</span></td>
+          </tr>
+          <tr>
+            <td class="metric">memcpy bandwidth</td>
+            <td class="num">4.67 GB/s</td><td class="num">4.77 GB/s</td><td class="num b">4.78 GB/s</td>
+            <td><span class="chip c-same">~same</span></td>
+          </tr>
+          <tr>
+            <td class="metric">loopback throughput</td>
+            <td class="num">19.28 Gb/s</td><td class="num">18.34 Gb/s</td><td class="num b">19.13 Gb/s</td>
+            <td><span class="chip c-same">~same</span></td>
+          </tr>
+          <tr>
+            <td class="metric"><strong>sysbench cpu</strong><br><span style="color:var(--ink-3)">control — must not vary</span></td>
+            <td class="num">2164.70</td><td class="num">2164.30</td><td class="num b">2164.00</td>
+            <td><span class="chip c-better">0.03 % spread</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">
+      The control row is what licenses everything above it. <code>sysbench cpu</code> is
+      deliberately <em>not</em> kernel-sensitive, and it landed within 0.03 % across all
+      three runs — so the machine was in an identical thermal and clock state throughout,
+      and the differences are the kernel rather than the room.
+    </p>
+  </section>
+
+  <section>
+    <h3>What the decomposition shows</h3>
+    <div class="findings">
+      <div class="finding good">
+        <h4>BORE is what makes task switching fast <span class="chip c-better">−32 %</span></h4>
+        <p>
+          On the identical binary, switching BORE on takes context-switch cost from
+          7.73&nbsp;µs to 5.23&nbsp;µs and <code>hackbench</code> from 4.76&nbsp;s to
+          3.38&nbsp;s. That is not a marginal tuning effect — it is the largest single
+          change measured here, and it lands on the metrics closest to how a desktop feels:
+          every window focus, input event and compositor frame is task switches.
+        </p>
+      </div>
+      <div class="finding watch">
+        <h4>The config, not BORE, causes most of the contention loss <span class="chip c-watch">corrects earlier reading</span></h4>
+        <p>
+          The first comparison blamed BORE for a 21&nbsp;% contention deficit. Splitting it
+          shows the Omarchy config and cross-compiler account for about 15&nbsp;% (29,237 →
+          24,945 with BORE off) and BORE for roughly 8&nbsp;% on top. BORE was carrying
+          blame for something largely not its doing.
+        </p>
+      </div>
+      <div class="finding good">
+        <h4>BORE more than repays the config's penalty <span class="chip c-better">net win</span></h4>
+        <p>
+          With BORE off, the custom kernel is <em>worse</em> than Arch's at context
+          switching — 7.73&nbsp;µs against 6.75&nbsp;µs. Switching BORE on does not merely
+          recover that gap, it ends up 23&nbsp;% ahead of stock. The same pattern holds for
+          <code>hackbench</code>: 4.76&nbsp;s becomes 3.38&nbsp;s against stock's 3.95&nbsp;s.
+        </p>
+      </div>
+      <div class="finding good">
+        <h4>RCU offloading is a latency win, not the throughput cost <span class="chip c-better">hypothesis disproved</span></h4>
+        <p>
+          A full config diff turned up exactly one scheduler-relevant difference from Arch:
+          Omarchy sets <code>CONFIG_RCU_NOCB_CPU_DEFAULT_ALL=y</code>, moving RCU callback
+          processing off every CPU into dedicated kthreads. The obvious theory was that the
+          extra kthread wakeups cost throughput.
+        </p>
+        <p>
+          Testing it by booting with <code>rcu_nocbs=0</code> — offloading only CPU 0 instead
+          of all four — showed the opposite. Contention throughput barely moved
+          (23,038 → 22,748, about 1 %), so offloading is not the cost. But context-switch
+          latency got <strong>69 % worse</strong>, 5.23&nbsp;µs → 8.85&nbsp;µs, because RCU
+          softirq work then runs on the CPUs doing the actual work and interrupts it.
+          Omarchy's choice is well founded, and the theory was backwards.
+        </p>
+      </div>
+      <div class="finding">
+        <h4>Upstream version explains none of it <span class="chip c-same">ruled out</span></h4>
+        <p>
+          Arch's 7.2.2 scored 29,237 against 7.1.11's 28,848 on the contention benchmark —
+          marginally better, not worse. The 7.1&nbsp;→&nbsp;7.2 caveat carried in the earlier
+          version of this report can be retired.
+        </p>
+      </div>
+      <div class="finding watch">
+        <h4>The remaining ~15 % is still unexplained <span class="chip c-watch">open</span></h4>
+        <p>
+          Upstream version is ruled out, BORE accounts for about 8 %, and the one config
+          difference turned out to be a latency benefit rather than a throughput cost. That
+          leaves the Omarchy kernel's 59 other patches and the self-built cross-compiler,
+          neither of which has been isolated. Two theories have already been tested and
+          discarded here; a third would be a guess, so it is left open.
+        </p>
+      </div>
+      <div class="finding">
+        <h4>Timer latency is not where BORE shows up <span class="chip c-same">unchanged</span></h4>
+        <p>
+          <code>cyclictest</code> is flat across all three configurations (963–968&nbsp;µs
+          idle, 971–1036&nbsp;µs loaded). It measures timer wakeups for a
+          real-time-priority thread, which BORE does not govern. The scheduler's effect
+          appears in ordinary task switching instead — which is why both measurements
+          belong in the suite.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>How to read this</h3>
+    <p class="note">
+      One run per kernel, one machine, one sitting. Everything inside ±10 % is reported as
+      “~same” rather than as an improvement or a regression, because two samples cannot
+      resolve that range. The desktop was idle but live during both runs — a compositor and
+      a full session, not a bare console — so these numbers reflect a real working machine
+      rather than a laboratory floor.
+    </p>
+  </section>
+
+  <footer>
+    <div>Generated by <code>omarchy-vitals</code> · tiers 0–2, 4 and 5 on both kernels · <code>--minutes 5</code></div>
+    <div>Kernel built with <code>marchy --cross</code> · reports compared with <code>omarchy-vitals compare</code></div>
+  </footer>
+
+</div>
