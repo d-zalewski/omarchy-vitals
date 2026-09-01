@@ -1,0 +1,19 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install coverage
+      - name: Run tests with coverage gate
+        run: |
+          PYTHONPATH=tests python -m coverage run --source=vitals \
+            -m unittest discover -s tests -t tests -v
+          python -m coverage report --show-missing --fail-under=100

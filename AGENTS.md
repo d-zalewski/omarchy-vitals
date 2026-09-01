@@ -115,6 +115,54 @@ sudo pacman -S rt-tests stress-ng fio bpftrace usbutils smartmontools \
 `rt-tests` is required for tier 2 (the jitter tier). `perf` and `sysbench` are
 required for tier 5.
 
+## Tests — run them before and after any change
+
+258 unit tests, **100 % line coverage**, no network or hardware access. They run
+in under a second on any machine, including one that is not the target.
+
+```bash
+./run-tests.sh                                  # coverage + 100 % gate
+PYTHONPATH=tests python3 -m unittest discover -s tests -t tests -q   # no deps
+```
+
+**Coverage is enforced at 100 %** by `run-tests.sh` and CI. If you add a check,
+add tests for every branch of it — including the failure and skip paths, which
+are the ones that run when something is already wrong.
+
+Nothing in the suite touches real hardware. Two helpers make that possible:
+
+- `tests/helpers.py` — `FakeContext` stands in for `Context`. Commands are
+  matched by substring against the joined argv, so a test only names the
+  distinctive part of a command:
+
+  ```python
+  ctx = FakeContext(
+      commands={"lspci": cp("00:02.0 VGA ... \n\tKernel driver in use: i915")},
+      tools=["glxinfo"],                 # what ctx.have() reports
+      journal_kernel="GPU HANG: ecode",  # cached journal contents
+      files={"/proc/sys/kernel/tainted": "0"},
+      kconfig="CONFIG_PREEMPT=y\n",
+  )
+  assert graphics.gpu_driver(ctx).status is Status.PASS
+  ```
+
+- `tests/fakefs.py` — `fake_fs({...})` simulates /sys and /proc for checks that
+  walk the filesystem. Map a path to a string for a file, or a list for a
+  directory; nested glob patterns like `card*-*/status` work:
+
+  ```python
+  with fake_fs({"/sys/class/drm": ["card0-HDMI-A-1"],
+                "/sys/class/drm/card0-HDMI-A-1/status": "connected"}):
+      assert graphics.displays(ctx).metrics["displays_connected"] == 1
+  ```
+
+When a test fails, check whether the *test* is wrong before changing the code —
+two failures during development here were incorrect assertions, not bugs. A
+third was a genuine bug the tests caught: `snapshot()` in `stress.py` raised
+instead of degrading when a sysfs directory was missing, which is exactly the
+situation it exists to report on.
+
+
 ## Adding a check
 
 One decorated function in `vitals/checks/<area>.py`. Keyword arguments become
@@ -139,6 +187,8 @@ def my_check(ctx):
 do not shell out to `journalctl` yourself.
 
 Rules for new checks:
+
+- Add tests covering every branch — `./run-tests.sh` enforces 100 % coverage.
 
 - Absent hardware returns `Skip`, never `Fail`.
 - If a metric has a direction, add it to `LOWER_IS_BETTER` or

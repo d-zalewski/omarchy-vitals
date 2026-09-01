@@ -1,193 +1,152 @@
 # omarchy-vitals
 
-Health and performance checks for **Omarchy desktop machines** — run after a
-kernel deploy, a system update, or any change you want to prove didn't break
-the machine you actually use.
+Health and performance checks for Omarchy desktops. Run it after a kernel deploy
+or system update to confirm the hardware still works and the machine still feels
+responsive — then diff two kernels to see what changed.
 
-It answers the two questions a desktop user cares about:
-
-1. **Does the hardware still work?** GPU and displays, sound, ethernet/wifi/
-   bluetooth, USB, input devices, storage, thermals.
-2. **Does it still feel smooth?** Scheduling latency measured idle *and* under
-   load — the thing you notice as stutter, dropped frames, or audio crackle.
-
-Runs on the target machine. Python standard library only, no pip dependencies.
+Python standard library only. Clone and run.
 
 ```bash
-./omarchy-vitals.py --tier 0,1          # health + desktop hardware   (~4 min)
-./omarchy-vitals.py --tier 2            # latency / jitter            (~12 min)
-./omarchy-vitals.py --tier 3,4          # stress + suspend/resume     (~25 min)
-./omarchy-vitals.py --tier 5            # kernel throughput benchmarks (~4 min)
-./omarchy-vitals.py --list              # every check, by tier
+./omarchy-vitals.py --tier 0,1     # health + desktop hardware      ~4 min
+./omarchy-vitals.py --tier 2       # scheduling latency / jitter   ~12 min
+./omarchy-vitals.py --tier 5       # kernel throughput              ~4 min
+./omarchy-vitals.py --list         # every check, by tier
 ```
-
-## What it found
-
-Pointed at Omarchy's own BORE kernel. Three configurations on one machine, with a
-deliberately kernel-insensitive control benchmark landing within **0.03 %** across
-all of them — so the machine stayed in an identical state and the differences below
-are the kernel, not the conditions.
-
-| | Arch stock 7.2.2 | custom, BORE off | custom, BORE on |
-|---|---|---|---|
-| context switch | 6.75 µs | 7.73 µs | **5.23 µs** |
-| hackbench | 3.95 s | 4.76 s | **3.38 s** |
-| mutex contention | **29,237 ev** | 24,945 ev | 23,038 ev |
-| cyclictest loaded | 971 µs | 995 µs | 1036 µs |
-
-**BORE is what makes task switching fast.** On the identical binary, toggling
-`kernel.sched_bore` moves context-switch cost 32 % and `hackbench` 29 %. It costs
-about 8 % under sustained mutex contention — a database workload, not a desktop.
-
-**Timer latency is flat across all three.** `cyclictest` measures RT-priority timer
-wakeups, which BORE does not govern. A suite that only ran `cyclictest` would have
-concluded the scheduler does nothing — which is why both measurements are in here.
-
-Full write-up with methodology, the hardware matrix and what was deliberately *not*
-tested: [`report/kernel-comparison.html`](report/kernel-comparison.html).
-
-**Two theories tested and discarded along the way.** The contention gap was first
-blamed on BORE (it is ~8 % of it, not all), then on `RCU_NOCB_CPU_DEFAULT_ALL`, the
-only scheduler-relevant config difference from Arch. Booting with `rcu_nocbs=0` showed
-that one backwards: contention barely moved, but context-switch latency got **69 %
-worse**, because RCU softirq work then runs on the CPUs doing the actual work. RCU
-offloading is a latency benefit. The remaining gap is still unexplained, and the tool
-says so rather than offering a third guess.
-
 
 ## Tiers
 
 | Tier | Covers | Time |
 |---|---|---|
-| 0 | kernel faults: taint, oops, MCE, failed units, probe failures, boot timing | 30s |
-| 1 | **desktop hardware**: GPU/display, audio, network, USB, input, storage, thermal, toolchain | 4m |
-| 2 | **latency/jitter**: `cyclictest` idle + under load, `hackbench`, scheduler state | 12m |
-| 3 | stress: sustained CPU/VM/IO load, thermal peak, disk I/O | 20m |
-| 4 | suspend/resume: S3 cycles, verifies GPU/NIC/audio come back | 3m |
-| 5 | **throughput**: context switch, syscall, scheduler contention, memcpy, loopback | 4m |
+| 0 | kernel faults: taint, oops, MCE, failed units, boot timing | 30s |
+| 1 | hardware: GPU, audio, network, USB, input, storage, thermal | 4m |
+| 2 | latency: `cyclictest` idle and under load, `hackbench` | 12m |
+| 3 | stress: sustained load, thermal peak, disk I/O | 20m |
+| 4 | suspend/resume: S3 cycles, devices verified afterwards | 3m |
+| 5 | throughput: context switch, syscall, contention, memcpy | 4m |
 
-Tiers 3–4 are disruptive (heavy load, suspends the machine). `--skip-disruptive`
-omits those and the audible speaker test.
+Tiers 3–4 load or suspend the machine; `--skip-disruptive` omits them.
 
-## Comparing two kernels
-
-A single run tells you whether anything is broken. Comparing two runs tells you
-whether anything got *worse* — usually the real question.
+## Comparing kernels
 
 ```bash
-./omarchy-vitals.py --tier 0,1,2                     # on kernel A
+./omarchy-vitals.py --tier 0,1,2              # on kernel A
 # reboot into kernel B, run again, then:
-./omarchy-vitals.py compare reports/A.json reports/B.json
+./omarchy-vitals.py compare A.json B.json
 ```
 
-Reports are JSON named after the running kernel. The comparison is
-**direction-aware** — it knows latency should fall and IOPS should rise — so it
-reports `REGRESSION` rather than a bare delta, and flags checks that flipped
-`PASS → FAIL`. Changes under ±10% are treated as noise (`--tolerance` to adjust).
+Reports are JSON named after the running kernel. The comparison knows which
+direction each metric should move, so it reports `REGRESSION` rather than a bare
+delta, and flags checks that flipped `PASS → FAIL`. Changes inside ±10 % are
+called `~same`.
 
-## Design notes
+An [example comparison report](report/kernel-comparison.html) is included.
 
-**Absent hardware skips; broken hardware fails.** A multi-NIC desktop with no
-radio must not fail wifi checks, and a laptop with no ethernet port must not
-fail wired ones. `SKIP` means "not applicable here"; `FAIL` means "this machine
-has it and it's broken". Getting this wrong produces a suite people learn to
-ignore.
+## Extending it
 
-**Latency thresholds are tied to perception**, not round numbers. On a `PREEMPT`
-(non-RT) desktop kernel: `<1 ms` smooth, `1–10 ms` occasional perceptible hitch,
-`>10 ms` visible stutter. Worst case is reported next to average because one
-12 ms outlier is a dropped frame you *see*, while the average stays flat and
-reassuring.
+A check is one decorated function. Keyword arguments become metrics that
+`compare` can diff. Drop it in `vitals/checks/<area>.py` — modules are imported
+in `omarchy-vitals.py`.
 
-**Software rendering counts as a failure.** If the GPU driver binds but clients
-fall back to `llvmpipe`, the desktop still "works" — slowly, and hot. That
-silent degradation is worse than an obvious break, so `gpu_accel` fails on it.
-
-**Checks run over SSH still see the desktop.** A remote shell has no
-`WAYLAND_DISPLAY` or `HYPRLAND_INSTANCE_SIGNATURE`, so `hyprctl` and `wpctl`
-would fail misleadingly. `Context.session_env()` borrows the compositor's own
-environment, recovering Hyprland's instance signature from
-`$XDG_RUNTIME_DIR/hypr/` — Hyprland sets it for children but doesn't keep it in
-its own `environ`.
-
-**Some checks target custom-built kernels.** If you build your own kernels with
-a self-compiled toolchain, the risks are toolchain risks:
-
-- `stack_protector` — a cross-gcc built `--without-headers` defaults the stack
-  guard to a global symbol instead of the kernel's `%gs:40`. That is *silent
-  memory corruption*, not a clean failure, so the check deliberately smashes a
-  stack and requires `SIGABRT`.
-- `vdso32` — covers multilib / 32-bit vDSO (`IA32_EMULATION`).
-- `btf` / `bpftrace` — verifies eBPF actually attaches, not merely that BTF
-  files exist.
-
-## Guards that keep a comparison honest
-
-**`perf` is version-locked to its kernel.** Arch ships only the current one, so
-running it against an older kernel can silently report nonsense. Every `perf` check
-compares versions and SKIPs on mismatch — a skipped row is more useful than a wrong
-one in an A/B.
-
-**`sysbench cpu` is included as a control**, precisely because it is *not*
-kernel-sensitive. If it moves between two kernels on one machine, the difference is
-thermal or clock drift and every other number should be discounted accordingly.
-
-**`stress-ng` bogo-ops are labelled, not trusted.** stress-ng documents them as
-explicitly not a benchmark, so the version is recorded alongside the number and they
-are only ever compared within one version on one machine.
-
-**`sched_bore` state is recorded as a metric.** BORE is a runtime toggle, so one
-binary can be measured in two scheduler configurations; a report that does not say
-which cannot be compared honestly.
-
-**Reports carry no network topology.** Connectivity checks record that the gateway
-answered, not its address — reports get shared and committed.
-
-## Adding a check
-
-One decorated function. Keyword arguments become metrics in the report and are
-diffed by `compare`:
+**Reading a sysfs value:**
 
 ```python
-# vitals/checks/graphics.py
-from ..core import check, Ok, Fail, Skip
+from ..core import check, Ok, Warn, Skip
 
-@check(tier=1, name="my_check", desc="what it proves", requires=["some-tool"])
-def my_check(ctx):
-    if not ctx.path_exists("/sys/class/thing"):
-        return Skip("hardware not present")            # not applicable here
-    n = ctx.count_matches(ctx.journal_kernel, r"thing.*error")
+@check(tier=1, name="fan", desc="fan is spinning")
+def fan(ctx):
+    if not ctx.path_exists("/sys/class/hwmon/hwmon0/fan1_input"):
+        return Skip("no fan sensor")                    # absent -> Skip
+    rpm = int(ctx.read("/sys/class/hwmon/hwmon0/fan1_input", "0"))
+    if rpm == 0:
+        return Warn("fan reporting 0 RPM", fan_rpm=0)
+    return Ok(f"{rpm} RPM", fan_rpm=rpm)
+```
+
+**Grepping the kernel log** (cached, read once per run):
+
+```python
+@check(tier=0, name="thermal_throttle", desc="CPU thermal throttling")
+def thermal_throttle(ctx):
+    n = ctx.count_matches(ctx.journal_kernel, r"package temperature above threshold")
     if n:
-        return Fail(f"{n} errors", thing_errors=n)     # present but broken
-    return Ok("thing healthy", thing_errors=0)
+        return Warn(f"{n} throttle events", throttle_events=n)
+    return Ok("no throttling", throttle_events=0)
+```
+
+**Running a tool that may be missing** — `requires` makes it Skip cleanly:
+
+```python
+@check(tier=1, name="nvme_temp", desc="NVMe drive temperature",
+       requires=["nvme"])
+def nvme_temp(ctx):
+    r = ctx.sudo(["nvme", "smart-log", "/dev/nvme0"])
+    if r.returncode != 0:
+        return Skip("no NVMe device")
+    ...
+```
+
+**Querying the desktop session** — works over SSH, the compositor's environment
+is attached automatically:
+
+```python
+@check(tier=1, name="workspaces", desc="compositor responds")
+def workspaces(ctx):
+    r = ctx.run_in_session(["hyprctl", "-j", "workspaces"])
+    if r.returncode != 0:
+        return Skip("no Hyprland session")
+    return Ok(f"{len(json.loads(r.stdout))} workspaces")
+```
+
+**A benchmark** — add the metric to `LOWER_IS_BETTER` or `HIGHER_IS_BETTER` in
+`vitals/core.py` so comparisons can judge direction, and mark it `disruptive`
+if it loads the machine:
+
+```python
+@check(tier=5, name="fs_create", desc="file creation rate",
+       disruptive=True, est_seconds=30)
+def fs_create(ctx):
+    ...
+    return Ok(f"{rate:.0f} files/sec", fs_create_rate=round(rate))
 ```
 
 `ctx` provides `run`, `sudo`, `run_in_session`, `have`, `read`, `path_exists`,
-`count_matches`, and cached `journal_kernel` / `journal_all` / `kconfig`. The
-journal is read once per run, not once per check.
+`count_matches`, `config_is_set`, and cached `journal_kernel` / `journal_all` /
+`kconfig`.
 
-If a metric has a direction, add it to `LOWER_IS_BETTER` or `HIGHER_IS_BETTER`
-in `vitals/core.py` so comparisons can identify regressions.
+Two rules worth following: **absent hardware returns `Skip`, never `Fail`** — a
+machine without wifi failing wifi checks makes a suite people ignore — and
+**reports should carry no identifying data**, since they get shared and
+committed.
 
-Drop a new module into `vitals/checks/` and import it in `omarchy-vitals.py`.
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -q     # no dependencies
+./run-tests.sh                               # adds coverage if installed
+```
 
 ## Optional tools
 
-Checks skip cleanly when a tool is missing, but coverage improves with:
+Checks skip cleanly when absent; coverage improves with:
 
 ```bash
 sudo pacman -S rt-tests stress-ng fio bpftrace usbutils smartmontools \
-               mesa-utils libva-utils
+               mesa-utils libva-utils sysbench perf iperf3
 ```
 
-`rt-tests` (cyclictest, hackbench) is required for tier 2 — the jitter tier.
-`mesa-utils` enables the software-rendering check.
+`rt-tests` is required for tier 2, `perf`/`sysbench` for tier 5.
 
-## Status
+## Notes
 
-Early but working: 38 pass, 9 skip, 0 fail on the machine it was developed against.
-Results so far come from a single x86 desktop, so the numbers above should be taken
-as one data point rather than a general claim about BORE.
+Latency thresholds follow perception rather than round numbers: under 1 ms is
+smooth, 1–10 ms an occasional hitch, beyond that visible stutter. Worst case is
+reported beside the average, because one 12 ms outlier is a dropped frame you see
+while the average stays flat.
 
-Contributions welcome, especially checks for hardware not covered yet — NVIDIA and
-AMD graphics, wifi, bluetooth, laptop suspend and battery.
+Results so far come from a single x86 desktop. Contributions welcome, especially
+checks for hardware not covered yet — NVIDIA and AMD graphics, wifi, bluetooth,
+laptop suspend and battery.
+
+## License
+
+MIT. See [LICENSE](LICENSE). Agent-facing usage notes are in [AGENTS.md](AGENTS.md).

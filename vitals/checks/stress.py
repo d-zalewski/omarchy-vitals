@@ -89,13 +89,23 @@ def suspend_resume(ctx):
         return Skip(f"S3 not supported (states: {states or 'none'})")
 
     def snapshot():
-        nics = sorted(p.name for p in Path("/sys/class/net").iterdir()
-                      if p.name != "lo")
-        cards = sorted(p.name for p in Path("/dev/dri").glob("card*")) \
-            if Path("/dev/dri").exists() else []
-        snds = sorted(p.name for p in Path("/proc/asound").glob("card*")) \
-            if Path("/proc/asound").exists() else []
-        return nics, cards, snds
+        """Device inventory, tolerant of any of these paths being absent.
+
+        Called again after resume, when a subsystem that failed to come back
+        may have taken its whole sysfs directory with it - so this must not
+        raise, or the check reports a crash instead of the missing device.
+        """
+        def names(path, pattern=None):
+            p = Path(path)
+            if not p.is_dir():
+                return []
+            try:
+                entries = p.glob(pattern) if pattern else p.iterdir()
+                return sorted(e.name for e in entries if e.name != "lo")
+            except OSError:
+                return []
+        return names("/sys/class/net"), names("/dev/dri", "card*"), \
+            names("/proc/asound", "card*")
 
     before = snapshot()
     cycles = 2

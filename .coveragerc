@@ -1,0 +1,10 @@
+[run]
+source = vitals
+branch = False
+
+[report]
+fail_under = 100
+show_missing = True
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
